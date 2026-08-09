@@ -16,51 +16,63 @@ export type Database = {
     Tables: {
       consultations: {
         Row: {
+          assigned_designer: string | null
           budget_range: string | null
           created_at: string
           email: string
           full_name: string
           id: string
+          location: string | null
           message: string | null
           phone: string | null
           preferred_date: string | null
           preferred_time: string | null
+          project_scope: string | null
           project_type: string | null
           property_address: string | null
           service_interest: string | null
           status: string
+          timeline: string | null
           updated_at: string
         }
         Insert: {
+          assigned_designer?: string | null
           budget_range?: string | null
           created_at?: string
           email: string
           full_name: string
           id?: string
+          location?: string | null
           message?: string | null
           phone?: string | null
           preferred_date?: string | null
           preferred_time?: string | null
+          project_scope?: string | null
           project_type?: string | null
           property_address?: string | null
           service_interest?: string | null
           status?: string
+          timeline?: string | null
           updated_at?: string
         }
         Update: {
+          assigned_designer?: string | null
           budget_range?: string | null
           created_at?: string
           email?: string
           full_name?: string
           id?: string
+          location?: string | null
           message?: string | null
           phone?: string | null
           preferred_date?: string | null
           preferred_time?: string | null
+          project_scope?: string | null
           project_type?: string | null
           property_address?: string | null
           service_interest?: string | null
           status?: string
+          timeline?: string | null
           updated_at?: string
         }
         Relationships: []
