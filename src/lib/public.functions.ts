@@ -63,7 +63,7 @@ const consultationSchema = z.object({
 });
 
 export const submitConsultation = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => consultationSchema.parse(input))
+  .validator((input: unknown) => consultationSchema.parse(input))
   .handler(async ({ data }) => {
     const { error } = await publicClient().from("consultations").insert(data);
     if (error) throw new Error(error.message);
@@ -79,7 +79,7 @@ const supportSchema = z.object({
 });
 
 export const submitSupportMessage = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => supportSchema.parse(input))
+  .validator((input: unknown) => supportSchema.parse(input))
   .handler(async ({ data }) => {
     const { error } = await publicClient().from("support_messages").insert(data);
     if (error) throw new Error(error.message);

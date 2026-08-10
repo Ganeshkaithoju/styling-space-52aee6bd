@@ -77,7 +77,7 @@ const projectSchema = z.object({
 
 export const saveProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => projectSchema.parse(input))
+  .validator((input: unknown) => projectSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { id, ...values } = data;
     const q = id
@@ -90,7 +90,7 @@ export const saveProject = createServerFn({ method: "POST" })
 
 export const deleteProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await context.supabase.from("project_images").delete().eq("project_id", data.id);
     const { error } = await context.supabase.from("projects").delete().eq("id", data.id);
@@ -113,7 +113,7 @@ export const listContent = createServerFn({ method: "GET" })
 
 export const saveContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -132,7 +132,7 @@ export const saveContent = createServerFn({ method: "POST" })
 
 export const saveService = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -167,7 +167,7 @@ export const listConsultations = createServerFn({ method: "GET" })
 
 export const updateConsultation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -198,7 +198,7 @@ export const listSupport = createServerFn({ method: "GET" })
 
 export const updateSupport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -230,7 +230,7 @@ export const getProfile = createServerFn({ method: "GET" })
 
 export const saveProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         full_name: z.string().trim().max(160).nullable().default(null),
@@ -263,7 +263,7 @@ export const listSettings = createServerFn({ method: "GET" })
 
 export const saveSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         values: z
