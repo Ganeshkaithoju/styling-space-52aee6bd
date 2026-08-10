@@ -30,7 +30,7 @@ function UsersPage() {
   const [tab, setTab] = useState<AppRole | "all">("all");
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: users = [] } = useQuery({ queryKey: ["admin", "users"], queryFn: () => listUsersFn() });
+  const { data: users = [], error: usersError, isError: isUsersError, isLoading } = useQuery({ queryKey: ["admin", "users"], queryFn: () => listUsersFn() });
   const { data: currentContext } = useQuery({ queryKey: ["admin", "context"], queryFn: () => getIsAdmin() });
   const currentUserId = currentContext?.userId;
 
@@ -92,14 +92,74 @@ function UsersPage() {
 
   const displayedUsers = users.filter((u) => tab === "all" || u.role === tab);
 
+  const handleExport = () => {
+    if (!users || users.length === 0) {
+      toast.error("No users to export.");
+      return;
+    }
+    
+    const headers = [
+      "User ID",
+      "Email",
+      "Full Name",
+      "Provider",
+      "Role",
+      "Status",
+      "Created At",
+      "Updated At",
+      "Last Sign In",
+      "Email Confirmed",
+      "Avatar URL"
+    ];
+    
+    const escapeCsv = (str: any) => {
+      if (str === null || str === undefined) return "";
+      const s = String(str);
+      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+    
+    const rows = users.map((u: any) => [
+      escapeCsv(u.id),
+      escapeCsv(u.email),
+      escapeCsv(u.full_name),
+      escapeCsv(u.provider),
+      escapeCsv(u.role),
+      escapeCsv(u.status),
+      escapeCsv(u.created_at),
+      escapeCsv(u.updated_at),
+      escapeCsv(u.last_sign_in_at),
+      escapeCsv(u.email_confirmed_at),
+      escapeCsv(u.avatar_url),
+    ].join(","));
+    
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    const date = new Date().toISOString().split('T')[0];
+    link.setAttribute("download", `styling-space-users-${date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <AdminShell
       title="User Management"
       description="Manage administrators, editors, and registered users."
       actions={
-        <button type="button" className={buttonClass} onClick={() => setShowCreate(!showCreate)}>
-          {showCreate ? "Cancel" : "Create Admin"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button type="button" className={`${buttonClass} bg-transparent border border-outline-variant text-on-surface hover:bg-surface-container`} onClick={handleExport}>
+            Export Users
+          </button>
+          <button type="button" className={buttonClass} onClick={() => setShowCreate(!showCreate)}>
+            {showCreate ? "Cancel" : "Create Admin"}
+          </button>
+        </div>
       }
     >
       <div className="flex gap-2 border-b border-outline-variant/50">
@@ -271,7 +331,22 @@ function UsersPage() {
                   </tr>
                 );
               })}
-              {displayedUsers.length === 0 && (
+              {isUsersError && (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-error">
+                    <p className="font-bold">Error loading users</p>
+                    <p className="text-sm mt-1">{usersError?.message || "An unknown error occurred"}</p>
+                  </td>
+                </tr>
+              )}
+              {isLoading && (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-on-surface-variant">
+                    Loading users...
+                  </td>
+                </tr>
+              )}
+              {!isUsersError && !isLoading && displayedUsers.length === 0 && (
                 <tr>
                   <td colSpan={4} className="py-8 text-center text-on-surface-variant">
                     No users found.

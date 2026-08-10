@@ -39,26 +39,39 @@ async function logAudit(
 export async function listUsers() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   
-  // Need to fetch auth users to get email?
-  // Actually, email is in public.profiles. So we just join profiles with user_roles.
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select(`
-      *,
-      user_roles (
-        role,
-        created_at
-      )
-    `)
-    .order("created_at", { ascending: false });
+  const [authRes, profilesRes, rolesRes] = await Promise.all([
+    supabaseAdmin.auth.admin.listUsers(),
+    supabaseAdmin.from("profiles").select("*"),
+    supabaseAdmin.from("user_roles").select("*")
+  ]);
 
-  if (error) throw error;
-  
-  return (data || []).map(p => ({
-    ...p,
-    role: p.user_roles?.[0]?.role || "user",
-    role_created_at: p.user_roles?.[0]?.created_at
-  }));
+  if (authRes.error) throw new Error("Failed to fetch auth users: " + authRes.error.message);
+  if (profilesRes.error) throw new Error("Failed to fetch profiles: " + profilesRes.error.message);
+  if (rolesRes.error) throw new Error("Failed to fetch roles: " + rolesRes.error.message);
+
+  const profilesMap = new Map(profilesRes.data?.map(p => [p.id, p]));
+  const rolesMap = new Map(rolesRes.data?.map(r => [r.user_id, r]));
+
+  return authRes.data.users.map(u => {
+    const profile = profilesMap.get(u.id);
+    const roleRecord = rolesMap.get(u.id);
+    const provider = u.app_metadata.provider || "email";
+    
+    return {
+      id: u.id,
+      email: u.email || profile?.email || "",
+      full_name: profile?.full_name || u.user_metadata?.full_name || "",
+      avatar_url: profile?.avatar_url || u.user_metadata?.avatar_url || null,
+      role: roleRecord?.role || "user",
+      role_created_at: roleRecord?.created_at,
+      status: (profile as any)?.status || "active", // fallback for status since it's not strongly typed in Database type
+      provider,
+      created_at: u.created_at,
+      updated_at: u.updated_at,
+      last_sign_in_at: u.last_sign_in_at,
+      email_confirmed_at: u.email_confirmed_at
+    };
+  }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 export async function createAdmin(callerId: string, email: string, fullName: string, role: AppRole) {

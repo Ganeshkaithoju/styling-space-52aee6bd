@@ -23,7 +23,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset" | "verify">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -36,6 +36,22 @@ function AuthPage() {
       } else if (session && mode !== "reset") {
         const params = new URLSearchParams(window.location.search);
         const redirectPath = params.get("redirect");
+
+        // Sync profile for Google OAuth users to ensure the profile exists
+        if (session.user.app_metadata?.provider === "google" || session.user.app_metadata?.providers?.includes("google")) {
+          const meta = session.user.user_metadata;
+          if (meta) {
+            supabase.from("profiles").upsert({
+              id: session.user.id,
+              email: session.user.email,
+              full_name: meta.full_name,
+              avatar_url: meta.avatar_url,
+              updated_at: new Date().toISOString()
+            }).then(({ error }) => {
+              if (error) console.error("Profile sync error:", error);
+            });
+          }
+        }
 
         if (redirectPath) {
           navigate({ to: redirectPath, replace: true });
@@ -75,7 +91,9 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        if (!data.session) toast.success("Check your email to confirm your account.");
+        if (!data.session) {
+          setMode("verify");
+        }
       } else if (mode === "forgot") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + "/auth",
@@ -96,6 +114,25 @@ function AuthPage() {
     }
   }
 
+  async function resendVerification() {
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: {
+          emailRedirectTo: window.location.origin + (new URLSearchParams(window.location.search).get("redirect") || "/"),
+        }
+      });
+      if (error) throw error;
+      toast.success("Verification email resent. Please check your inbox.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to resend email.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function google() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -109,15 +146,38 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-margin-mobile py-16">
       <div className="w-full max-w-md">
-        <Link to="/" className="font-headline-md text-headline-md text-primary">
+        <Link to="/" className="mb-6 inline-flex items-center gap-2 font-body-md text-[14px] text-on-surface-variant transition-colors hover:text-primary">
+          <Icon name="arrow_back" className="text-[18px]" />
+          Back to Homepage
+        </Link>
+        <Link to="/" className="block font-headline-md text-headline-md text-primary">
           Styling Space
         </Link>
         <p className="mt-2 font-label-caps text-label-caps uppercase tracking-widest text-secondary">
-          Studio CMS access
+          {mode === "verify" ? "Account Verification" : "Studio CMS access"}
         </p>
 
-        <form onSubmit={onSubmit} className="mt-10 flex flex-col gap-5">
-          {mode === "signup" && (
+        {mode === "verify" ? (
+          <div className="mt-10 flex flex-col gap-5 text-center border border-outline-variant/50 p-8">
+            <h2 className="font-headline-sm text-primary uppercase tracking-widest">Verify Your Email</h2>
+            <p className="text-on-surface-variant font-body-md">
+              We've sent a confirmation link to <span className="font-medium text-on-surface">{email}</span>
+            </p>
+            <p className="text-on-surface-variant font-body-md">
+              Please check your inbox and click the confirmation link to activate your account.
+            </p>
+            <button 
+              type="button" 
+              onClick={resendVerification} 
+              disabled={busy} 
+              className={`${buttonClass} mt-4 bg-transparent border border-outline-variant text-on-surface hover:bg-surface-container`}
+            >
+              Resend Email
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={onSubmit} className="mt-10 flex flex-col gap-5">
+            {mode === "signup" && (
             <div>
               <label className={labelClass} htmlFor="fullName">
                 Full name
@@ -164,12 +224,13 @@ function AuthPage() {
             </div>
           )}
 
-          <button type="submit" disabled={busy} className={buttonClass}>
-            {mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}
-          </button>
-        </form>
+            <button type="submit" disabled={busy} className={buttonClass}>
+              {mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}
+            </button>
+          </form>
+        )}
 
-        {mode !== "reset" && (
+        {mode !== "reset" && mode !== "verify" && (
           <button
             type="button"
             onClick={google}
@@ -180,7 +241,7 @@ function AuthPage() {
           </button>
         )}
 
-        {mode !== "reset" && (
+        {mode !== "reset" && mode !== "verify" && (
           <div className="mt-6 flex flex-col items-center gap-2">
             <button
               type="button"
