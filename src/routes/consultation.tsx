@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -21,6 +21,13 @@ export const Route = createFileRoute("/consultation")({
       { property: "og:description", content: "Schedule a private consultation with our design studio." },
     ],
   }),
+  beforeLoad: async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) {
+      throw redirect({ to: "/auth", search: { redirect: "/consultation" } });
+    }
+  },
   loader: ({ context }) => {
     context.queryClient.ensureQueryData(siteDataQuery);
   },
@@ -50,27 +57,16 @@ function ConsultationPage() {
     message: "",
     preferred_date: "",
     preferred_time: times[0]!,
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone: "",
     property_address: "",
   });
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   async function confirm() {
-    if (!form.first_name.trim() || !form.email.trim()) {
-      toast.error("Please add your name and email address.");
-      return;
-    }
     setSaving(true);
     try {
       await submit({
         data: {
-          full_name: `${form.first_name} ${form.last_name}`.trim(),
-          email: form.email.trim(),
-          phone: form.phone || null,
           service_interest: form.service_interest,
           project_type: form.project_type,
           project_scope: form.project_scope,
@@ -84,8 +80,8 @@ function ConsultationPage() {
         },
       });
       setDone(true);
-    } catch {
-      toast.error("We couldn't submit your request. Please try again.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "We couldn't submit your request.");
     } finally {
       setSaving(false);
     }
@@ -272,24 +268,6 @@ function ConsultationPage() {
                     kept strictly confidential.
                   </p>
                   <div className="max-w-xl space-y-8">
-                    <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-                      <div>
-                        <label className={label} htmlFor="fname">First Name</label>
-                        <input id="fname" className={field} value={form.first_name} onChange={(e) => set("first_name", e.target.value)} />
-                      </div>
-                      <div>
-                        <label className={label} htmlFor="lname">Last Name</label>
-                        <input id="lname" className={field} value={form.last_name} onChange={(e) => set("last_name", e.target.value)} />
-                      </div>
-                    </div>
-                    <div>
-                      <label className={label} htmlFor="email">Email Address</label>
-                      <input id="email" type="email" className={field} value={form.email} onChange={(e) => set("email", e.target.value)} />
-                    </div>
-                    <div>
-                      <label className={label} htmlFor="phone">Phone Number</label>
-                      <input id="phone" type="tel" className={field} value={form.phone} onChange={(e) => set("phone", e.target.value)} />
-                    </div>
                     <div>
                       <label className={label} htmlFor="address">Property Address (Optional)</label>
                       <input id="address" className={field} value={form.property_address} onChange={(e) => set("property_address", e.target.value)} />

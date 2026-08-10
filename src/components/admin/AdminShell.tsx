@@ -7,9 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
 const nav = [
   { to: "/admin", label: "Overview", icon: "dashboard", exact: true },
   { to: "/admin/content", label: "Content Manager", icon: "article" },
+  { to: "/admin/services", label: "Services", icon: "design_services" },
   { to: "/admin/portfolio", label: "Portfolio Editor", icon: "photo_library" },
   { to: "/admin/consultations", label: "Consultations", icon: "event_note" },
   { to: "/admin/support", label: "Support", icon: "support_agent" },
+  { to: "/admin/users", label: "User Management", icon: "group" },
   { to: "/admin/profile", label: "Profile", icon: "person" },
   { to: "/admin/settings", label: "Settings", icon: "settings" },
 ] as const;
@@ -34,7 +36,7 @@ export function AdminShell({
     await queryClient.cancelQueries();
     queryClient.clear();
     await supabase.auth.signOut();
-    navigate({ to: "/auth", replace: true });
+    navigate({ to: "/", replace: true });
   }
 
   const isActive = (to: string, exact?: boolean) =>

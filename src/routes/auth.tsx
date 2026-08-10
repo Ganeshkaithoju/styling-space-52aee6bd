@@ -23,17 +23,40 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/admin", replace: true });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setMode("reset");
+      } else if (session && mode !== "reset") {
+        const params = new URLSearchParams(window.location.search);
+        const redirectPath = params.get("redirect");
+
+        if (redirectPath) {
+          navigate({ to: redirectPath, replace: true });
+        } else {
+          // Handle post-login redirect based on role
+          supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }).then((adminRes) => {
+            supabase.rpc("has_role", { _user_id: session.user.id, _role: "owner" }).then((ownerRes) => {
+              supabase.rpc("has_role", { _user_id: session.user.id, _role: "editor" }).then((editorRes) => {
+                if (adminRes.data || ownerRes.data || editorRes.data) {
+                  navigate({ to: "/admin", replace: true });
+                } else {
+                  navigate({ to: "/", replace: true });
+                }
+              });
+            });
+          });
+        }
+      }
     });
-  }, [navigate]);
+    return () => subscription.unsubscribe();
+  }, [navigate, mode]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,19 +65,29 @@ function AuthPage() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/admin", replace: true });
-      } else {
+      } else if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin + "/admin",
+            emailRedirectTo: window.location.origin + (new URLSearchParams(window.location.search).get("redirect") || "/"),
             data: { full_name: fullName },
           },
         });
         if (error) throw error;
-        if (data.session) navigate({ to: "/admin", replace: true });
-        else toast.success("Check your email to confirm your account.");
+        if (!data.session) toast.success("Check your email to confirm your account.");
+      } else if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin + "/auth",
+        });
+        if (error) throw error;
+        toast.success("Password reset email sent.");
+        setMode("signin");
+      } else if (mode === "reset") {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        toast.success("Password updated successfully.");
+        setMode("signin");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -67,7 +100,7 @@ function AuthPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin + "/auth",
+        redirectTo: window.location.origin + "/auth" + (window.location.search || ""),
       }
     });
     if (error) toast.error(error.message);
@@ -98,56 +131,84 @@ function AuthPage() {
               />
             </div>
           )}
-          <div>
-            <label className={labelClass} htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              className={`${fieldClass} mt-2`}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              maxLength={200}
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={6}
-              className={`${fieldClass} mt-2`}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
+          {mode !== "reset" && (
+            <div>
+              <label className={labelClass} htmlFor="email">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                className={`${fieldClass} mt-2`}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+          )}
+          {mode !== "forgot" && (
+            <div>
+              <label className={labelClass} htmlFor="password">
+                {mode === "reset" ? "New Password" : "Password"}
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                minLength={6}
+                className={`${fieldClass} mt-2`}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+          )}
 
           <button type="submit" disabled={busy} className={buttonClass}>
-            {mode === "signin" ? "Sign in" : "Create account"}
+            {mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={google}
-          className="mt-4 flex w-full items-center justify-center gap-3 border border-outline-variant px-6 py-3 font-label-caps text-label-caps uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container"
-        >
-          <Icon name="account_circle" className="text-[18px]" />
-          Continue with Google
-        </button>
+        {mode !== "reset" && (
+          <button
+            type="button"
+            onClick={google}
+            className="mt-4 flex w-full items-center justify-center gap-3 border border-outline-variant px-6 py-3 font-label-caps text-label-caps uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container"
+          >
+            <Icon name="account_circle" className="text-[18px]" />
+            Continue with Google
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="mt-6 font-body-md text-[14px] text-on-surface-variant underline underline-offset-4"
-        >
-          {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
-        </button>
+        {mode !== "reset" && (
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+              className="font-body-md text-[14px] text-on-surface-variant underline underline-offset-4"
+            >
+              {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+            </button>
+            {mode === "signin" && (
+              <button
+                type="button"
+                onClick={() => setMode("forgot")}
+                className="font-body-md text-[14px] text-on-surface-variant underline underline-offset-4"
+              >
+                Forgot your password?
+              </button>
+            )}
+            {mode === "forgot" && (
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="font-body-md text-[14px] text-on-surface-variant underline underline-offset-4"
+              >
+                Back to sign in
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

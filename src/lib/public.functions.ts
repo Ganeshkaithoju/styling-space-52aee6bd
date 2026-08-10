@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
@@ -47,9 +48,9 @@ export const getSiteData = createServerFn({ method: "GET" }).handler(async () =>
 });
 
 const consultationSchema = z.object({
-  full_name: z.string().trim().min(1).max(160),
-  email: z.string().trim().email().max(200),
-  phone: z.string().trim().max(60).nullable().default(null),
+  full_name: z.string().trim().min(1).max(160).optional(),
+  email: z.string().trim().email().max(200).optional(),
+  phone: z.string().trim().max(60).nullable().default(null).optional(),
   service_interest: z.string().trim().max(120).nullable().default(null),
   project_type: z.string().trim().max(120).nullable().default(null),
   project_scope: z.string().trim().max(120).nullable().default(null),
@@ -63,10 +64,43 @@ const consultationSchema = z.object({
 });
 
 export const submitConsultation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .validator((input: unknown) => consultationSchema.parse(input))
-  .handler(async ({ data }) => {
-    const { error } = await publicClient().from("consultations").insert(data);
+  .handler(async ({ data, context }) => {
+    // 1. Check for duplicates
+    const { data: existing } = await context.supabase
+      .from("consultations")
+      .select("status")
+      .eq("user_id", context.userId)
+      .in("status", ["new", "contacted", "scheduled"]) // "new" is the default status
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      throw new Error("You already have an active consultation. Please check your dashboard.");
+    }
+
+    // 2. Extract profile details to ensure we use the authenticated user's true data
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("full_name, phone")
+      .eq("id", context.userId)
+      .single();
+
+    // 3. Insert the consultation
+    const insertData = {
+      ...data,
+      user_id: context.userId,
+      email: context.claims.email, // Secure email from JWT
+      full_name: profile?.full_name || data.full_name || "Unknown",
+      phone: profile?.phone || data.phone || null,
+    };
+
+    const { error } = await context.supabase.from("consultations").insert(insertData);
     if (error) throw new Error(error.message);
+
+    // 4. Scaffold Email Confirmation (TODO: Implement Resend integration)
+    console.log(`[Email Service Scaffold] Sending Confirmation to ${insertData.email} for user ${context.userId}`);
+
     return { ok: true };
   });
 
