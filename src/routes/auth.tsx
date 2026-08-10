@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Icon } from "@/components/Icon";
@@ -28,12 +28,15 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const isRecoveryFlow = useRef(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
+        isRecoveryFlow.current = true;
         setMode("reset");
-      } else if (session && mode !== "reset") {
+      } else if (session && !isRecoveryFlow.current) {
         const params = new URLSearchParams(window.location.search);
         const redirectPath = params.get("redirect");
 
@@ -72,7 +75,7 @@ function AuthPage() {
       }
     });
     return () => subscription.unsubscribe();
-  }, [navigate, mode]);
+  }, [navigate]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,10 +105,39 @@ function AuthPage() {
         toast.success("Password reset email sent.");
         setMode("signin");
       } else if (mode === "reset") {
+        if (password !== confirmPassword) {
+          toast.error("Passwords do not match.");
+          return;
+        }
         const { error } = await supabase.auth.updateUser({ password });
         if (error) throw error;
         toast.success("Password updated successfully.");
-        setMode("signin");
+        
+        setPassword("");
+        setConfirmPassword("");
+        isRecoveryFlow.current = false;
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const params = new URLSearchParams(window.location.search);
+          const redirectPath = params.get("redirect");
+          if (redirectPath) {
+            navigate({ to: redirectPath, replace: true });
+          } else {
+            const [adminRes, ownerRes, editorRes] = await Promise.all([
+              supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }),
+              supabase.rpc("has_role", { _user_id: session.user.id, _role: "owner" }),
+              supabase.rpc("has_role", { _user_id: session.user.id, _role: "editor" })
+            ]);
+            if (adminRes.data || ownerRes.data || editorRes.data) {
+              navigate({ to: "/admin", replace: true });
+            } else {
+              navigate({ to: "/", replace: true });
+            }
+          }
+        } else {
+          setMode("signin");
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -220,6 +252,22 @@ function AuthPage() {
                 className={`${fieldClass} mt-2`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+          )}
+          {mode === "reset" && (
+            <div>
+              <label className={labelClass} htmlFor="confirmPassword">
+                Confirm New Password
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                required
+                minLength={6}
+                className={`${fieldClass} mt-2`}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
               />
             </div>
           )}
