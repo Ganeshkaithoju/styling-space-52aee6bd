@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Icon } from "@/components/Icon";
 import { buttonClass, fieldClass, labelClass } from "@/components/admin/AdminShell";
-import { createVerificationAttempt, checkVerificationStatus } from "@/lib/auth.functions";
+import { createVerificationAttempt, checkVerificationStatus, checkPasswordResetEligibility } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -29,6 +29,7 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const isRecoveryFlow = useRef(
     typeof window !== "undefined" && window.location.hash.includes("type=recovery")
@@ -148,6 +149,12 @@ function AuthPage() {
           setMode("verify");
         }
       } else if (mode === "forgot") {
+        const { exists } = await checkPasswordResetEligibility({ data: { email } });
+        if (!exists) {
+          toast.error("User not found. Please sign up to continue.");
+          return;
+        }
+
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + "/auth",
         });
@@ -155,12 +162,21 @@ function AuthPage() {
         toast.success("Password reset email sent.");
         setMode("signin");
       } else if (mode === "reset") {
+        if (!password) {
+          toast.error("New password is required.");
+          return;
+        }
         if (password !== confirmPassword) {
           toast.error("Passwords do not match.");
           return;
         }
+        
+        setIsUpdatingPassword(true);
         const { error } = await supabase.auth.updateUser({ password });
+        setIsUpdatingPassword(false);
+        
         if (error) throw error;
+        
         toast.success("Password updated successfully.");
         
         setPassword("");
@@ -322,8 +338,8 @@ function AuthPage() {
             </div>
           )}
 
-            <button type="submit" disabled={busy} className={buttonClass}>
-              {mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}
+            <button type="submit" disabled={busy || isUpdatingPassword} className={buttonClass}>
+              {isUpdatingPassword ? "Updating..." : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}
             </button>
           </form>
         )}

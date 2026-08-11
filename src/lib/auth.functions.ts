@@ -90,3 +90,43 @@ export const checkVerificationStatus = createServerFn({ method: "POST" })
       return { confirmed: false, expired: true };
     }
   });
+
+export const checkPasswordResetEligibility = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        email: z.string().email(),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data }) => {
+    // Basic rate limiting could be implemented here via Redis or DB timestamps.
+    // For now, we perform a secure server-side check.
+    const normalizedEmail = data.email.trim().toLowerCase();
+
+    // Import the server-side supabaseAdmin
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Because this is a studio CMS, we can safely use listUsers or query the profiles table.
+    // Querying the profiles table is typically faster if indexed by email.
+    const { data: profileData, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (profileData) {
+      return { exists: true };
+    }
+
+    // Fallback check against auth.users in case the profile trigger failed
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (authError) {
+      // Fail closed or generic
+      return { exists: false };
+    }
+
+    const exists = authData.users.some((u) => u.email?.toLowerCase() === normalizedEmail);
+    return { exists };
+  });
