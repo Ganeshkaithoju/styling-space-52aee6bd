@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ export const Route = createFileRoute("/_client/dashboard")({
 
 function DashboardPage() {
   const { tab } = Route.useSearch();
+  const navigate = useNavigate();
   const qc = useQueryClient();
 
   const { data: userAuth } = useSuspenseQuery({
@@ -76,7 +77,7 @@ function DashboardPage() {
           <button
             key={t}
             type="button"
-            onClick={() => Route.navigate({ search: { tab: t } })}
+            onClick={() => navigate({ to: ".", search: { tab: t } })}
             className={`px-5 py-3 font-label-caps text-label-caps uppercase tracking-widest transition-colors ${
               tab === t ? "border-b-2 border-secondary text-primary" : "text-on-surface-variant"
             }`}
@@ -95,7 +96,7 @@ function DashboardPage() {
                   You have no active consultations.
                 </p>
                 <button
-                  onClick={() => Route.navigate({ to: "/consultation" })}
+                  onClick={() => navigate({ to: "/consultation" })}
                   className={`mt-6 ${buttonClass}`}
                 >
                   Book a Consultation
