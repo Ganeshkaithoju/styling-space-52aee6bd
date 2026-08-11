@@ -20,6 +20,10 @@ function DashboardPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
   const { data: userAuth } = useSuspenseQuery({
     queryKey: ["auth", "user"],
     queryFn: async () => {
@@ -139,49 +143,108 @@ function DashboardPage() {
         )}
 
         {tab === "profile" && (
-          <form
-            className="border border-outline-variant/60 bg-surface-container-lowest p-8"
-            onSubmit={(e) => {
-              e.preventDefault();
-              profileMutation.mutate(new FormData(e.currentTarget));
-            }}
-          >
-            <div className="grid gap-6 md:grid-cols-2">
-              <div>
-                <label className={labelClass}>Full Name</label>
-                <input
-                  name="full_name"
-                  defaultValue={profile?.full_name || ""}
-                  className={`${fieldClass} mt-2`}
-                  required
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Phone Number</label>
-                <input
-                  name="phone"
-                  defaultValue={profile?.phone || ""}
-                  className={`${fieldClass} mt-2`}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className={labelClass}>Email Address (Read-only)</label>
-                <input
-                  value={userAuth.email || ""}
-                  readOnly
-                  disabled
-                  className={`${fieldClass} mt-2 opacity-60`}
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              className={`${buttonClass} mt-8`}
-              disabled={profileMutation.isPending}
+          <>
+            <form
+              className="border border-outline-variant/60 bg-surface-container-lowest p-8"
+              onSubmit={(e) => {
+                e.preventDefault();
+                profileMutation.mutate(new FormData(e.currentTarget));
+              }}
             >
-              {profileMutation.isPending ? "Saving..." : "Save Profile"}
-            </button>
-          </form>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <label className={labelClass}>Full Name</label>
+                  <input
+                    name="full_name"
+                    defaultValue={profile?.full_name || ""}
+                    className={`${fieldClass} mt-2`}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Phone Number</label>
+                  <input
+                    name="phone"
+                    defaultValue={profile?.phone || ""}
+                    className={`${fieldClass} mt-2`}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Email Address (Read-only)</label>
+                  <input
+                    value={userAuth.email || ""}
+                    readOnly
+                    disabled
+                    className={`${fieldClass} mt-2 opacity-60`}
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className={`${buttonClass} mt-8`}
+                disabled={profileMutation.isPending}
+              >
+                {profileMutation.isPending ? "Saving..." : "Save Profile"}
+              </button>
+            </form>
+
+            <div className="mt-12 border border-outline-variant/60 bg-surface-container-lowest p-8">
+              <h2 className="font-headline-sm text-primary mb-6">Change Password</h2>
+              <form
+                className="flex flex-col gap-6"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newPassword) {
+                    toast.error("New password is required.");
+                    return;
+                  }
+                  if (newPassword !== confirmNewPassword) {
+                    toast.error("Passwords do not match.");
+                    return;
+                  }
+                  
+                  setIsUpdatingPassword(true);
+                  try {
+                    const { error } = await supabase.auth.updateUser({ password: newPassword });
+                    if (error) throw error;
+                    toast.success("Password updated successfully.");
+                    setNewPassword("");
+                    setConfirmNewPassword("");
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Failed to update password");
+                  } finally {
+                    setIsUpdatingPassword(false);
+                  }
+                }}
+              >
+                <div>
+                  <label className={labelClass}>New Password</label>
+                  <input 
+                    type="password" 
+                    required
+                    minLength={6}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className={`${fieldClass} mt-2`} 
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Confirm New Password</label>
+                  <input 
+                    type="password" 
+                    required
+                    minLength={6}
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className={`${fieldClass} mt-2`} 
+                  />
+                </div>
+                <button type="submit" className={`${buttonClass} mt-2 max-w-fit`} disabled={isUpdatingPassword}>
+                  {isUpdatingPassword ? "Updating..." : "Update password"}
+                </button>
+              </form>
+            </div>
+          </>
         )}
       </div>
     </div>

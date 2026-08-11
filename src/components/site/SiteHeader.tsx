@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 const links = [
+  { to: "/", label: "Home" },
   { to: "/portfolio", label: "Portfolio" },
   { to: "/services", label: "Services" },
   { to: "/about", label: "About" },
