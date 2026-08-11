@@ -30,7 +30,9 @@ function AuthPage() {
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
-  const isRecoveryFlow = useRef(false);
+  const isRecoveryFlow = useRef(
+    typeof window !== "undefined" && window.location.hash.includes("type=recovery")
+  );
   const opaqueToken = useRef<string | null>(null);
 
   // Cross-device email verification polling
@@ -78,7 +80,7 @@ function AuthPage() {
       if (event === "PASSWORD_RECOVERY") {
         isRecoveryFlow.current = true;
         setMode("reset");
-      } else if (session && !isRecoveryFlow.current) {
+      } else if (session && !isRecoveryFlow.current && mode !== "reset") {
         const params = new URLSearchParams(window.location.search);
         const redirectPath = params.get("redirect");
 
