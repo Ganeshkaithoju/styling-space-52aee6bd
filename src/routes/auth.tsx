@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Icon } from "@/components/Icon";
 import { buttonClass, fieldClass, labelClass } from "@/components/admin/AdminShell";
+import { createVerificationAttempt, checkVerificationStatus } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -30,6 +31,47 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const isRecoveryFlow = useRef(false);
+  const opaqueToken = useRef<string | null>(null);
+
+  // Cross-device email verification polling
+  useEffect(() => {
+    if (mode !== "verify" || !opaqueToken.current) return;
+
+    let isChecking = false;
+    const interval = setInterval(async () => {
+      if (isChecking) return;
+      isChecking = true;
+      try {
+        const result = await checkVerificationStatus({ data: { token: opaqueToken.current! } });
+        
+        if (result.confirmed) {
+          clearInterval(interval);
+          opaqueToken.current = null;
+          
+          // Attempt to refresh session in case it's recoverable (e.g. same-device edge cases)
+          const { data: { session } } = await supabase.auth.refreshSession();
+          
+          if (!session) {
+            // No safe laptop session. Switch to sign in. Email is already pre-filled.
+            toast.success("Email confirmed.");
+            setMode("signin");
+          }
+          // If session is valid, onAuthStateChange will naturally handle the SIGNED_IN redirect.
+        } else if (result.expired) {
+          clearInterval(interval);
+          opaqueToken.current = null;
+          toast.error("Verification timeout. Please sign in.");
+          setMode("signin");
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+      } finally {
+        isChecking = false;
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [mode]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -94,7 +136,13 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        if (!data.session) {
+        if (!data.session && data.user) {
+          try {
+            const attempt = await createVerificationAttempt({ data: { userId: data.user.id } });
+            opaqueToken.current = attempt.token;
+          } catch (err) {
+            console.error("Failed to create verification attempt:", err);
+          }
           setMode("verify");
         }
       } else if (mode === "forgot") {
