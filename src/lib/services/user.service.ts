@@ -1,11 +1,32 @@
 import type { Database } from "@/integrations/supabase/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAuditLog } from "./audit.service";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
 /**
- * Validates that the action is not targeting the owner (if destructive/demoting)
- * and verifies caller is an owner if doing owner-level actions.
+ * Validates the caller's identity and authorization server-side.
+ */
+export async function requireAdminAuth(adminClient: SupabaseClient<Database>, callerId: string) {
+  const [userRes, roleRes] = await Promise.all([
+    adminClient.auth.admin.getUserById(callerId),
+    adminClient.from("user_roles").select("role").eq("user_id", callerId).single(),
+  ]);
+
+  if (userRes.error || !userRes.data.user) {
+    throw new Error("Unauthorized: Invalid caller identity.");
+  }
+
+  const role = roleRes.data?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Forbidden: This action requires Administrator or Owner privileges.");
+  }
+
+  return { user: userRes.data.user, role };
+}
+
+/**
+ * Validates that the action is not targeting the owner (if destructive/demoting).
  */
 async function enforceOwnerProtection(adminClient: SupabaseClient<Database>, targetUserId: string) {
   const { data: roleData } = await adminClient
@@ -15,21 +36,18 @@ async function enforceOwnerProtection(adminClient: SupabaseClient<Database>, tar
     .single();
 
   if (roleData?.role === "owner") {
-    throw new Error(
-      "Action denied: The Owner account is permanently protected and cannot be modified.",
-    );
+    throw new Error("The selected user is protected because they are the Owner.");
   }
 }
-
-import { createAuditLog } from "./audit.service";
 
 export async function listUsers() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-  const [authRes, profilesRes, rolesRes] = await Promise.all([
+  const [authRes, profilesRes, rolesRes, locationsRes] = await Promise.all([
     supabaseAdmin.auth.admin.listUsers(),
     supabaseAdmin.from("profiles").select("*"),
     supabaseAdmin.from("user_roles").select("*"),
+    supabaseAdmin.from("customer_locations").select("*"),
   ]);
 
   if (authRes.error) throw new Error("Failed to fetch auth users: " + authRes.error.message);
@@ -38,6 +56,7 @@ export async function listUsers() {
 
   const profilesMap = new Map(profilesRes.data?.map((p) => [p.id, p]));
   const rolesMap = new Map(rolesRes.data?.map((r) => [r.user_id, r]));
+  const locationsMap = new Map(locationsRes.data?.map((l) => [l.user_id, l]));
 
   return authRes.data.users
     .map((u) => {
@@ -52,12 +71,13 @@ export async function listUsers() {
         avatar_url: profile?.avatar_url || u.user_metadata?.avatar_url || null,
         role: roleRecord?.role || "user",
         role_created_at: roleRecord?.created_at,
-        status: ((profile as Record<string, unknown>)?.status as string) || "active", // fallback for status since it's not strongly typed in Database type
+        status: ((profile as Record<string, unknown>)?.status as string) || "active",
         provider,
         created_at: u.created_at,
         updated_at: u.updated_at,
         last_sign_in_at: u.last_sign_in_at,
         email_confirmed_at: u.email_confirmed_at,
+        location: locationsMap.get(u.id) || null,
       };
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -71,14 +91,19 @@ export async function createAdmin(
 ) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+  await requireAdminAuth(supabaseAdmin, callerId);
+
   if (role === "owner") {
     throw new Error("Cannot create an owner. Use ownership transfer.");
   }
 
-  // 1. Create Auth User
-  // Auto-confirm email so they can reset password directly or we can set a temp password
-  const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
+  const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+  if (existingUsers?.users?.some((u) => u.email === email)) {
+    throw new Error("An account with this email already exists.");
+  }
 
+  // 1. Create Auth User
+  const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email,
     password: tempPassword,
@@ -90,18 +115,26 @@ export async function createAdmin(
     throw new Error("Failed to create auth user: " + authError?.message);
   }
 
-  // 2. Wait for trigger to create profile and default user_role
-  // Since triggers are asynchronous in some contexts, we might just upsert.
-  // The trigger handles inserting into user_roles as 'user'. We need to update it.
+  try {
+    // 2. Assign requested admin role
+    const { error: roleError } = await supabaseAdmin.from("user_roles").upsert({
+      user_id: authData.user.id,
+      role,
+    });
 
-  // Give the trigger a moment to run if needed, though in Postgres it's synchronous.
-  // Update the role
-  await supabaseAdmin.from("user_roles").update({ role }).eq("user_id", authData.user.id);
+    if (roleError) {
+      throw new Error("Failed to assign role: " + roleError.message);
+    }
+  } catch (roleAssignmentError) {
+    // Clean up partial creation
+    await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+    throw new Error(
+      `Role assignment failed. Account creation rolled back: ${(roleAssignmentError as Error).message}`,
+    );
+  }
 
-  // Send a reset password email so they can set their real password
-  await supabaseAdmin.auth.admin.resetPasswordForEmail(email);
-
-  await createAuditLog(supabaseAdmin, callerId, {
+  // 3. Create audit record
+  const auditRes = await createAuditLog(supabaseAdmin, callerId, {
     action: `ADMIN_CREATED`,
     entityType: "user",
     entityId: authData.user.id,
@@ -109,23 +142,41 @@ export async function createAdmin(
     newData: { role },
   });
 
+  // 4. Send a reset password email
+  const { error: emailError } = await supabaseAdmin.auth.admin.resetPasswordForEmail(email);
+
+  if (emailError) {
+    throw new Error("Admin account was created, but the password setup email could not be sent.");
+  }
+
+  if (!auditRes.success) {
+    throw new Error(
+      `Admin account was created, but the audit record could not be created: ${auditRes.error}`,
+    );
+  }
+
   return authData.user;
 }
 
 export async function removeAdmin(callerId: string, targetUserId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+  await requireAdminAuth(supabaseAdmin, callerId);
   await enforceOwnerProtection(supabaseAdmin, targetUserId);
 
   const { error } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
   if (error) throw new Error("Failed to delete user: " + error.message);
 
-  await createAuditLog(supabaseAdmin, callerId, {
+  const auditRes = await createAuditLog(supabaseAdmin, callerId, {
     action: "USER_DELETED",
     entityType: "user",
     entityId: targetUserId,
     description: "Removed User",
   });
+  if (!auditRes.success)
+    throw new Error(
+      `User was deleted, but the audit record could not be created: ${auditRes.error}`,
+    );
 }
 
 export async function setAccountStatus(
@@ -135,51 +186,64 @@ export async function setAccountStatus(
 ) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+  await requireAdminAuth(supabaseAdmin, callerId);
   await enforceOwnerProtection(supabaseAdmin, targetUserId);
 
   const { error } = await supabaseAdmin.from("profiles").update({ status }).eq("id", targetUserId);
-
   if (error) throw new Error("Failed to update status: " + error.message);
 
-  // If inactivating, we could also ban the user in auth.users
   if (status === "inactive") {
     await supabaseAdmin.auth.admin.updateUserById(targetUserId, { ban_duration: "87600h" });
   } else {
     await supabaseAdmin.auth.admin.updateUserById(targetUserId, { ban_duration: "none" });
   }
 
-  await createAuditLog(supabaseAdmin, callerId, {
+  const auditRes = await createAuditLog(supabaseAdmin, callerId, {
     action: status === "inactive" ? "USER_DEACTIVATED" : "USER_ACTIVATED",
     entityType: "user",
     entityId: targetUserId,
     description: `Set Status: ${status}`,
   });
+  if (!auditRes.success)
+    throw new Error(
+      `User status was changed, but the audit record could not be created: ${auditRes.error}`,
+    );
 }
 
 export async function adminResetPassword(callerId: string, targetUserId: string, email: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+  await requireAdminAuth(supabaseAdmin, callerId);
   await enforceOwnerProtection(supabaseAdmin, targetUserId);
 
   const { error } = await supabaseAdmin.auth.admin.resetPasswordForEmail(email);
   if (error) throw new Error("Failed to send reset email: " + error.message);
 
-  await createAuditLog(supabaseAdmin, callerId, {
+  const auditRes = await createAuditLog(supabaseAdmin, callerId, {
     action: "PASSWORD_RESET_TRIGGERED",
     entityType: "user",
     entityId: targetUserId,
     description: "Admin triggered password reset",
   });
+  if (!auditRes.success)
+    throw new Error(
+      `Password reset email sent, but the audit record could not be created: ${auditRes.error}`,
+    );
 }
 
 export async function transferOwnership(callerId: string, targetAdminId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-  // Call the atomic postgres function
+  // Call the atomic postgres function (which verifies caller is owner)
   const { error } = await supabaseAdmin.rpc("transfer_ownership", { new_owner_id: targetAdminId });
-  if (error) throw new Error("Failed to transfer ownership: " + error.message);
+  if (error) {
+    if (error.message.includes("Only the current owner")) {
+      throw new Error("Forbidden: This action requires Owner privileges.");
+    }
+    throw new Error("Failed to transfer ownership: " + error.message);
+  }
 
-  await createAuditLog(supabaseAdmin, callerId, {
+  const auditRes = await createAuditLog(supabaseAdmin, callerId, {
     action: "OWNERSHIP_TRANSFERRED",
     entityType: "user",
     entityId: targetAdminId,
@@ -187,10 +251,16 @@ export async function transferOwnership(callerId: string, targetAdminId: string)
     oldData: { role: "admin" },
     newData: { role: "owner" },
   });
+  if (!auditRes.success)
+    throw new Error(
+      `Ownership transferred, but the audit record could not be created: ${auditRes.error}`,
+    );
 }
 
 export async function updateRole(callerId: string, targetUserId: string, newRole: AppRole) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  await requireAdminAuth(supabaseAdmin, callerId);
 
   if (newRole === "owner") throw new Error("Use transfer ownership instead.");
 
@@ -209,7 +279,7 @@ export async function updateRole(callerId: string, targetUserId: string, newRole
 
   if (error) throw new Error("Failed to update role: " + error.message);
 
-  await createAuditLog(supabaseAdmin, callerId, {
+  const auditRes = await createAuditLog(supabaseAdmin, callerId, {
     action: "ROLE_CHANGED",
     entityType: "user",
     entityId: targetUserId,
@@ -217,4 +287,8 @@ export async function updateRole(callerId: string, targetUserId: string, newRole
     oldData: { role: oldRoleData?.role },
     newData: { role: newRole },
   });
+  if (!auditRes.success)
+    throw new Error(
+      `User role was changed, but the audit record could not be created: ${auditRes.error}`,
+    );
 }

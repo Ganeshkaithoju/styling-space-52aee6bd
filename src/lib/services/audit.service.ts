@@ -16,12 +16,14 @@ export interface AuditLogOptions {
 /**
  * Reusable server-side audit logger.
  * Derives the actor identity strictly from the authenticated server session.
+ *
+ * Returns an error string if audit logging fails, so the caller can alert the operator.
  */
 export async function createAuditLog(
   adminClient: SupabaseClient<Database>,
   actorUserId: string,
   options: AuditLogOptions,
-) {
+): Promise<{ success: boolean; error?: string }> {
   try {
     // Determine the actor's name, email, and role from the server
     const [userRes, roleRes] = await Promise.all([
@@ -29,9 +31,10 @@ export async function createAuditLog(
       adminClient.from("user_roles").select("role").eq("user_id", actorUserId).single(),
     ]);
 
-    if (userRes.error) {
-      console.error("Failed to fetch actor user for audit:", userRes.error);
-      return;
+    if (userRes.error || !userRes.data?.user) {
+      const msg = "Failed to fetch actor user for audit: " + userRes.error?.message;
+      console.error(msg);
+      return { success: false, error: msg };
     }
 
     const user = userRes.data.user;
@@ -56,8 +59,13 @@ export async function createAuditLog(
 
     if (error) {
       console.error("Failed to write audit log:", error);
+      return { success: false, error: error.message };
     }
+
+    return { success: true };
   } catch (err) {
-    console.error("Audit log exception:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Audit log exception:", msg);
+    return { success: false, error: msg };
   }
 }

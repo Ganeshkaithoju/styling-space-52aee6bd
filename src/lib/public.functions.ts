@@ -162,6 +162,50 @@ export const submitSupportMessage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { error } = await publicClient().from("support_messages").insert(data);
     if (error) throw new Error(error.message);
+
+    return { ok: true };
+  });
+
+export const getCustomerLocation = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("customer_locations")
+      .select("*")
+      .eq("user_id", context.userId)
+      .single();
+
+    // PGRST116 means no rows returned, which is fine (not shared yet)
+    if (error && error.code !== "PGRST116") {
+      throw new Error(error.message);
+    }
+
+    return data;
+  });
+
+export const updateCustomerLocation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+        accuracy: z.number().nullable().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("customer_locations").upsert(
+      {
+        user_id: context.userId,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        accuracy: data.accuracy ?? null,
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (error) throw new Error(error.message);
     return { ok: true };
   });
 

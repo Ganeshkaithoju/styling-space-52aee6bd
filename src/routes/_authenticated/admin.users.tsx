@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AdminShell, buttonClass, fieldClass, labelClass } from "@/components/admin/AdminShell";
+import { AdminLocationDetail } from "@/components/admin/AdminLocationDetail";
 import {
   listUsersFn,
   createAdminFn,
@@ -24,6 +25,13 @@ function UsersPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<AppRole | "all">("all");
   const [showCreate, setShowCreate] = useState(false);
+  type CustomerLocation = {
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+    updated_at: string;
+  };
+  const [selectedLocation, setSelectedLocation] = useState<CustomerLocation | null>(null);
 
   const {
     data: users = [],
@@ -238,10 +246,13 @@ function UsersPage() {
                 <th className="pb-3 font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">
                   Role
                 </th>
-                <th className="pb-3 font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">
+                <th className="px-4 py-3 text-left font-label-caps text-xs uppercase tracking-widest text-on-surface-variant">
                   Status
                 </th>
-                <th className="pb-3 text-right font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">
+                <th className="px-4 py-3 text-left font-label-caps text-xs uppercase tracking-widest text-on-surface-variant">
+                  Location
+                </th>
+                <th className="px-4 py-3 text-right font-label-caps text-xs uppercase tracking-widest text-on-surface-variant">
                   Actions
                 </th>
               </tr>
@@ -268,7 +279,7 @@ function UsersPage() {
                       {user.role}
                       {isSelf && <span className="ml-2 text-xs text-secondary">(You)</span>}
                     </td>
-                    <td className="py-4">
+                    <td className="px-4 py-4 align-top">
                       <span
                         className={`inline-block rounded-full px-2 py-1 text-xs uppercase tracking-widest ${
                           user.status === "active"
@@ -279,7 +290,33 @@ function UsersPage() {
                         {user.status || "active"}
                       </span>
                     </td>
-                    <td className="py-4 text-right">
+                    <td className="px-4 py-4 align-top">
+                      {(() => {
+                        const loc = (user as unknown as { location?: CustomerLocation }).location;
+                        if (!loc)
+                          return (
+                            <span className="text-sm text-on-surface-variant">Not shared</span>
+                          );
+                        return (
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className="font-label-caps text-xs uppercase tracking-widest text-primary">
+                              Shared
+                            </span>
+                            <span className="text-xs text-on-surface-variant whitespace-nowrap">
+                              Updated: {new Date(loc.updated_at).toLocaleDateString()}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLocation(loc)}
+                              className="text-xs font-semibold text-secondary hover:underline mt-1"
+                            >
+                              View Location
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-4 py-4 align-top text-right">
                       <div className="flex items-center justify-end gap-2">
                         {!isOwner && (
                           <button
@@ -388,7 +425,7 @@ function UsersPage() {
               })}
               {isUsersError && (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-error">
+                  <td colSpan={5} className="py-8 text-center text-error">
                     <p className="font-bold">Error loading users</p>
                     <p className="text-sm mt-1">
                       {usersError?.message || "An unknown error occurred"}
@@ -398,14 +435,14 @@ function UsersPage() {
               )}
               {isLoading && (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-on-surface-variant">
+                  <td colSpan={5} className="py-8 text-center text-on-surface-variant">
                     Loading users...
                   </td>
                 </tr>
               )}
               {!isUsersError && !isLoading && displayedUsers.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-on-surface-variant">
+                  <td colSpan={5} className="py-8 text-center text-on-surface-variant">
                     No users found.
                   </td>
                 </tr>
@@ -414,6 +451,13 @@ function UsersPage() {
           </table>
         </div>
       </div>
+
+      {selectedLocation && (
+        <AdminLocationDetail
+          location={selectedLocation}
+          onClose={() => setSelectedLocation(null)}
+        />
+      )}
     </AdminShell>
   );
 }

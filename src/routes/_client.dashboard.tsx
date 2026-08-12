@@ -5,7 +5,11 @@ import { toast } from "sonner";
 import { Icon } from "@/components/Icon";
 import { buttonClass, fieldClass, labelClass } from "@/components/admin/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
-import { updateConsultationLocation } from "@/lib/public.functions";
+import {
+  updateConsultationLocation,
+  getCustomerLocation,
+  updateCustomerLocation,
+} from "@/lib/public.functions";
 import { SiteFooter } from "@/components/site/SiteFooter";
 
 declare global {
@@ -83,6 +87,58 @@ function DashboardPage() {
       return data ?? [];
     },
   });
+
+  const { data: myLocation, refetch: refetchLocation } = useSuspenseQuery({
+    queryKey: ["myLocation", userAuth.id],
+    queryFn: async () => {
+      try {
+        const loc = await getCustomerLocation();
+        return loc;
+      } catch (err) {
+        return null;
+      }
+    },
+  });
+
+  const locationMutation = useMutation({
+    mutationFn: async (coords: {
+      latitude: number;
+      longitude: number;
+      accuracy: number | null;
+    }) => {
+      await updateCustomerLocation(coords);
+    },
+    onSuccess: () => {
+      toast.success("Location updated successfully.");
+      refetchLocation();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleShareLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser.");
+      return;
+    }
+    toast.info("Requesting location access...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        locationMutation.mutate({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      (err) => {
+        let msg = "Location could not be determined.";
+        if (err.code === err.PERMISSION_DENIED) {
+          msg = "Location permission was denied.";
+        }
+        toast.error(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  };
 
   const profileMutation = useMutation({
     mutationFn: async (fd: FormData) => {
@@ -232,6 +288,33 @@ function DashboardPage() {
                 {profileMutation.isPending ? "Saving..." : "Save Profile"}
               </button>
             </form>
+
+            <div className="mt-12 border border-outline-variant/60 bg-surface-container-lowest p-8">
+              <h2 className="font-headline-sm text-primary mb-6">My Location</h2>
+              <div className="mb-6">
+                <p className="font-body-md text-on-surface-variant">
+                  Status:{" "}
+                  <span className="font-semibold">{myLocation ? "Shared" : "Not shared"}</span>
+                </p>
+                {myLocation && (
+                  <p className="font-body-sm text-on-surface-variant mt-1">
+                    Last updated: {new Date(myLocation.updated_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                className={`${buttonClass}`}
+                onClick={handleShareLocation}
+                disabled={locationMutation.isPending}
+              >
+                {locationMutation.isPending
+                  ? "Updating..."
+                  : myLocation
+                    ? "Update Location"
+                    : "Share My Current Location"}
+              </button>
+            </div>
 
             <div className="mt-12 border border-outline-variant/60 bg-surface-container-lowest p-8">
               <h2 className="font-headline-sm text-primary mb-6">Change Password</h2>
