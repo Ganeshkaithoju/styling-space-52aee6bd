@@ -2,12 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  AdminShell,
-  buttonClass,
-  fieldClass,
-  labelClass,
-} from "@/components/admin/AdminShell";
+import { AdminShell, buttonClass, fieldClass, labelClass } from "@/components/admin/AdminShell";
 import {
   listUsersFn,
   createAdminFn,
@@ -30,8 +25,16 @@ function UsersPage() {
   const [tab, setTab] = useState<AppRole | "all">("all");
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: users = [], error: usersError, isError: isUsersError, isLoading } = useQuery({ queryKey: ["admin", "users"], queryFn: () => listUsersFn() });
-  const { data: currentContext } = useQuery({ queryKey: ["admin", "context"], queryFn: () => getIsAdmin() });
+  const {
+    data: users = [],
+    error: usersError,
+    isError: isUsersError,
+    isLoading,
+  } = useQuery({ queryKey: ["admin", "users"], queryFn: () => listUsersFn() });
+  const { data: currentContext } = useQuery({
+    queryKey: ["admin", "context"],
+    queryFn: () => getIsAdmin(),
+  });
   const currentUserId = currentContext?.userId;
 
   const createAdminMut = useMutation({
@@ -97,7 +100,7 @@ function UsersPage() {
       toast.error("No users to export.");
       return;
     }
-    
+
     const headers = [
       "User ID",
       "Email",
@@ -109,10 +112,10 @@ function UsersPage() {
       "Updated At",
       "Last Sign In",
       "Email Confirmed",
-      "Avatar URL"
+      "Avatar URL",
     ];
-    
-    const escapeCsv = (str: any) => {
+
+    const escapeCsv = (str: unknown) => {
       if (str === null || str === undefined) return "";
       const s = String(str);
       if (s.includes(",") || s.includes('"') || s.includes("\n")) {
@@ -120,27 +123,29 @@ function UsersPage() {
       }
       return s;
     };
-    
-    const rows = users.map((u: any) => [
-      escapeCsv(u.id),
-      escapeCsv(u.email),
-      escapeCsv(u.full_name),
-      escapeCsv(u.provider),
-      escapeCsv(u.role),
-      escapeCsv(u.status),
-      escapeCsv(u.created_at),
-      escapeCsv(u.updated_at),
-      escapeCsv(u.last_sign_in_at),
-      escapeCsv(u.email_confirmed_at),
-      escapeCsv(u.avatar_url),
-    ].join(","));
-    
+
+    const rows = users.map((u) =>
+      [
+        escapeCsv(u.id),
+        escapeCsv(u.email),
+        escapeCsv(u.full_name),
+        escapeCsv(u.provider),
+        escapeCsv(u.role),
+        escapeCsv(u.status),
+        escapeCsv(u.created_at),
+        escapeCsv(u.updated_at),
+        escapeCsv(u.last_sign_in_at),
+        escapeCsv(u.email_confirmed_at),
+        escapeCsv(u.avatar_url),
+      ].join(","),
+    );
+
     const csvContent = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    const date = new Date().toISOString().split('T')[0];
+    const date = new Date().toISOString().split("T")[0];
     link.setAttribute("download", `styling-space-users-${date}.csv`);
     document.body.appendChild(link);
     link.click();
@@ -153,7 +158,11 @@ function UsersPage() {
       description="Manage administrators, editors, and registered users."
       actions={
         <div className="flex items-center gap-3">
-          <button type="button" className={`${buttonClass} bg-transparent border border-outline-variant text-on-surface hover:bg-surface-container`} onClick={handleExport}>
+          <button
+            type="button"
+            className={`${buttonClass} bg-transparent border border-outline-variant text-on-surface hover:bg-surface-container`}
+            onClick={handleExport}
+          >
             Export Users
           </button>
           <button type="button" className={buttonClass} onClick={() => setShowCreate(!showCreate)}>
@@ -185,9 +194,11 @@ function UsersPage() {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
               createAdminMut.mutate({
-                email: fd.get("email") as string,
-                fullName: fd.get("fullName") as string,
-                role: fd.get("role") as any,
+                data: {
+                  email: fd.get("email") as string,
+                  fullName: fd.get("fullName") as string,
+                  role: fd.get("role") as "admin" | "editor",
+                },
               });
             }}
           >
@@ -260,7 +271,9 @@ function UsersPage() {
                     <td className="py-4">
                       <span
                         className={`inline-block rounded-full px-2 py-1 text-xs uppercase tracking-widest ${
-                          user.status === "active" ? "bg-primary/10 text-primary" : "bg-error/10 text-error"
+                          user.status === "active"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-error/10 text-error"
                         }`}
                       >
                         {user.status || "active"}
@@ -273,7 +286,9 @@ function UsersPage() {
                             type="button"
                             onClick={() => {
                               if (confirm(`Reset password for ${user.email}?`)) {
-                                resetMut.mutate({ targetUserId: user.id!, email: user.email! });
+                                resetMut.mutate({
+                                  data: { targetUserId: user.id!, email: user.email! },
+                                });
                               }
                             }}
                             className="text-sm text-secondary underline hover:text-primary"
@@ -287,8 +302,14 @@ function UsersPage() {
                               type="button"
                               onClick={() => {
                                 const newStatus = user.status === "active" ? "inactive" : "active";
-                                if (confirm(`${newStatus === "inactive" ? "Deactivate" : "Reactivate"} ${user.email}?`)) {
-                                  statusMut.mutate({ targetUserId: user.id!, status: newStatus });
+                                if (
+                                  confirm(
+                                    `${newStatus === "inactive" ? "Deactivate" : "Reactivate"} ${user.email}?`,
+                                  )
+                                ) {
+                                  statusMut.mutate({
+                                    data: { targetUserId: user.id!, status: newStatus },
+                                  });
                                 }
                               }}
                               className="text-sm text-secondary underline hover:text-primary"
@@ -298,14 +319,48 @@ function UsersPage() {
                             <button
                               type="button"
                               onClick={() => {
-                                if (confirm(`Permanently remove ${user.email}? This cannot be undone.`)) {
-                                  removeAdminMut.mutate({ targetUserId: user.id! });
+                                if (
+                                  confirm(
+                                    `Permanently remove ${user.email}? This cannot be undone.`,
+                                  )
+                                ) {
+                                  removeAdminMut.mutate({ data: { targetUserId: user.id! } });
                                 }
                               }}
                               className="text-sm text-error underline hover:text-error/80"
                             >
                               Remove
                             </button>
+                            {currentContext?.isAdmin && user.role !== "admin" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Promote ${user.email} to Admin?`)) {
+                                    updateRoleMut.mutate({
+                                      data: { targetUserId: user.id!, role: "admin" },
+                                    });
+                                  }
+                                }}
+                                className="text-sm text-secondary underline hover:text-primary"
+                              >
+                                Make Admin
+                              </button>
+                            )}
+                            {currentContext?.isAdmin && user.role === "user" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Promote ${user.email} to Editor?`)) {
+                                    updateRoleMut.mutate({
+                                      data: { targetUserId: user.id!, role: "editor" },
+                                    });
+                                  }
+                                }}
+                                className="text-sm text-secondary underline hover:text-primary"
+                              >
+                                Make Editor
+                              </button>
+                            )}
                           </>
                         )}
                         {/* Only current owner can transfer ownership */}
@@ -318,7 +373,7 @@ function UsersPage() {
                                   `TRANSFER OWNERSHIP to ${user.email}?\nYou will lose owner privileges and become an admin. This cannot be undone by you.`,
                                 )
                               ) {
-                                transferMut.mutate({ targetAdminId: user.id! });
+                                transferMut.mutate({ data: { targetAdminId: user.id! } });
                               }
                             }}
                             className="text-sm text-secondary underline hover:text-primary"
@@ -335,7 +390,9 @@ function UsersPage() {
                 <tr>
                   <td colSpan={4} className="py-8 text-center text-error">
                     <p className="font-bold">Error loading users</p>
-                    <p className="text-sm mt-1">{usersError?.message || "An unknown error occurred"}</p>
+                    <p className="text-sm mt-1">
+                      {usersError?.message || "An unknown error occurred"}
+                    </p>
                   </td>
                 </tr>
               )}

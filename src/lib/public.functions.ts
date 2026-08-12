@@ -27,7 +27,9 @@ export const getSiteData = createServerFn({ method: "GET" }).handler(async () =>
   const [projects, services, content, settings] = await Promise.all([
     supabase
       .from("projects")
-      .select("id, slug, title, subtitle, description, category, location, year, cover_image_url, featured, sort_order")
+      .select(
+        "id, slug, title, subtitle, description, category, location, year, cover_image_url, featured, sort_order",
+      )
       .eq("status", "published")
       .order("sort_order"),
     supabase
@@ -35,7 +37,10 @@ export const getSiteData = createServerFn({ method: "GET" }).handler(async () =>
       .select("id, number, title, description, details, sort_order")
       .eq("status", "published")
       .order("sort_order"),
-    supabase.from("site_content").select("content_key, page, section, heading, body").eq("status", "published"),
+    supabase
+      .from("site_content")
+      .select("content_key, page, section, heading, body")
+      .eq("status", "published"),
     supabase.from("settings").select("setting_key, setting_value").eq("is_public", true),
   ]);
 
@@ -43,7 +48,9 @@ export const getSiteData = createServerFn({ method: "GET" }).handler(async () =>
     projects: projects.data ?? [],
     services: services.data ?? [],
     content: Object.fromEntries((content.data ?? []).map((c) => [c.content_key, c])),
-    settings: Object.fromEntries((settings.data ?? []).map((s) => [s.setting_key, s.setting_value])),
+    settings: Object.fromEntries(
+      (settings.data ?? []).map((s) => [s.setting_key, s.setting_value]),
+    ),
   };
 });
 
@@ -95,11 +102,49 @@ export const submitConsultation = createServerFn({ method: "POST" })
       phone: profile?.phone || data.phone || null,
     };
 
-    const { error } = await context.supabase.from("consultations").insert(insertData);
+    const { error, data: inserted } = await context.supabase
+      .from("consultations")
+      .insert(insertData)
+      .select("id")
+      .single();
     if (error) throw new Error(error.message);
 
-    // 4. Scaffold Email Confirmation (TODO: Implement Resend integration)
-    console.log(`[Email Service Scaffold] Sending Confirmation to ${insertData.email} for user ${context.userId}`);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "CONSULTATION_CREATED",
+      entityType: "consultation",
+      entityId: inserted?.id,
+      description: "Submitted new consultation",
+      newData: insertData,
+    });
+
+    // 4. Send Email Confirmation via Resend
+    try {
+      const { Resend } = await import("resend");
+      const resendApiKey = process.env.RESEND_API_KEY;
+      if (resendApiKey) {
+        const resend = new Resend(resendApiKey);
+        await resend.emails.send({
+          from: "Styling Space <noreply@resend.dev>", // We use resend.dev for testing unless they have a domain
+          to: [insertData.email],
+          subject: "Consultation Request Received - Styling Space",
+          html: `
+            <p>Hi ${insertData.full_name},</p>
+            <p>Thank you for requesting a consultation for <strong>${insertData.service_interest}</strong>.</p>
+            <p>Our team will review your project details and get back to you shortly.</p>
+            <br/>
+            <p>Best regards,</p>
+            <p>The Styling Space Team</p>
+          `,
+        });
+      } else {
+        console.warn("RESEND_API_KEY is not defined. Email was not sent.");
+      }
+    } catch (emailError) {
+      console.error("Failed to send email:", emailError);
+      // We don't want to fail the consultation creation if the email fails.
+    }
 
     return { ok: true };
   });
@@ -117,5 +162,59 @@ export const submitSupportMessage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { error } = await publicClient().from("support_messages").insert(data);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const updateConsultationLocation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        consultationId: z.string().uuid(),
+        property_lat: z.number(),
+        property_lng: z.number(),
+        property_place_id: z.string(),
+        property_formatted_address: z.string(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    // 1. Verify ownership
+    const { data: consultation, error: fetchErr } = await context.supabase
+      .from("consultations")
+      .select("id, user_id")
+      .eq("id", data.consultationId)
+      .single();
+
+    if (fetchErr || !consultation || consultation.user_id !== context.userId) {
+      throw new Error("Consultation not found or unauthorized.");
+    }
+
+    // 2. Update
+    const updates = {
+      property_lat: data.property_lat,
+      property_lng: data.property_lng,
+      property_place_id: data.property_place_id,
+      property_formatted_address: data.property_formatted_address,
+    };
+
+    const { error } = await context.supabase
+      .from("consultations")
+      .update(updates)
+      .eq("id", data.consultationId);
+
+    if (error) throw new Error(error.message);
+
+    // 3. Audit Log
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "CONSULTATION_LOCATION_UPDATED",
+      entityType: "consultation",
+      entityId: data.consultationId,
+      description: "User updated property location",
+      newData: updates,
+    });
+
     return { ok: true };
   });

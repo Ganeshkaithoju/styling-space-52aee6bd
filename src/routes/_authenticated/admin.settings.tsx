@@ -35,28 +35,42 @@ function SettingsPage() {
           const fd = new FormData(e.currentTarget);
           save.mutate({
             data: {
-              values: rows.map((r) => ({ id: r.id, setting_value: String(fd.get(r.id) ?? "") || null })),
+              values: rows.map((r) => ({
+                id: r.id,
+                setting_value: String(fd.get(r.id) ?? "") || null,
+              })),
             },
           });
         }}
       >
         {categories.map((cat) => (
-          <section key={cat} className="mb-10 border border-outline-variant/60 bg-surface-container-lowest p-8">
-            <h2 className="font-label-caps text-label-caps uppercase tracking-widest text-secondary">{cat}</h2>
+          <section
+            key={cat}
+            className="mb-10 border border-outline-variant/60 bg-surface-container-lowest p-8"
+          >
+            <h2 className="font-label-caps text-label-caps uppercase tracking-widest text-secondary">
+              {cat}
+            </h2>
             <div className="mt-6 grid gap-6 md:grid-cols-2">
               {rows
                 .filter((r) => r.category === cat)
                 .map((r) => (
                   <div key={r.id}>
                     <label className={labelClass}>{r.label ?? r.setting_key}</label>
-                    <input name={r.id} defaultValue={r.setting_value ?? ""} className={`${fieldClass} mt-2`} />
+                    <input
+                      name={r.id}
+                      defaultValue={r.setting_value ?? ""}
+                      className={`${fieldClass} mt-2`}
+                    />
                   </div>
                 ))}
             </div>
           </section>
         ))}
         {rows.length === 0 && (
-          <p className="font-body-md text-body-md text-on-surface-variant">No settings configured.</p>
+          <p className="font-body-md text-body-md text-on-surface-variant">
+            No settings configured.
+          </p>
         )}
         <button type="submit" className={buttonClass} disabled={save.isPending}>
           Save settings

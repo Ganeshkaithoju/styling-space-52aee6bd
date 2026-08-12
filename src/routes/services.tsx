@@ -29,9 +29,18 @@ export const Route = createFileRoute("/services")({
 });
 
 const processSteps = [
-  { title: "Consultation & Discovery", body: "Understanding your narrative and spatial requirements." },
-  { title: "Conceptual Architecture", body: "Developing a cohesive visual language and structural flow." },
-  { title: "Precision Execution", body: "Overseeing bespoke fabrication and seamless installation." },
+  {
+    title: "Consultation & Discovery",
+    body: "Understanding your narrative and spatial requirements.",
+  },
+  {
+    title: "Conceptual Architecture",
+    body: "Developing a cohesive visual language and structural flow.",
+  },
+  {
+    title: "Precision Execution",
+    body: "Overseeing bespoke fabrication and seamless installation.",
+  },
 ];
 
 const serviceImages = [images.nordic, images.maison, images.atelier, images.coastal];
@@ -50,10 +59,10 @@ function ServicesPage() {
                 Our Services
               </h1>
               <p className="mx-auto max-w-2xl font-body-lg text-body-lg text-on-surface-variant">
-                We approach interior architecture as a silent dialogue between form, function, and the
-                human spirit. Our services are tailored to orchestrate spaces that embody a hushed
-                luxury—curated environments where every line, texture, and silence is deliberately
-                composed.
+                We approach interior architecture as a silent dialogue between form, function, and
+                the human spirit. Our services are tailored to orchestrate spaces that embody a
+                hushed luxury—curated environments where every line, texture, and silence is
+                deliberately composed.
               </p>
             </div>
           </div>
@@ -67,7 +76,9 @@ function ServicesPage() {
               className="mx-auto max-w-container-max px-margin-mobile py-16 md:px-margin-desktop md:py-24"
             >
               <div className="grid grid-cols-1 items-center gap-gutter md:grid-cols-12">
-                <div className={`md:col-span-6 ${reverse ? "md:order-2 md:col-start-7" : "order-2 md:order-1"}`}>
+                <div
+                  className={`md:col-span-6 ${reverse ? "md:order-2 md:col-start-7" : "order-2 md:order-1"}`}
+                >
                   <img
                     src={serviceImages[index % serviceImages.length]}
                     alt={service.title}
@@ -86,9 +97,13 @@ function ServicesPage() {
                   <h2 className="font-headline-lg text-headline-lg-mobile text-primary md:text-headline-lg">
                     {service.title}
                   </h2>
-                  <p className="font-body-md text-body-md text-on-surface-variant">{service.description}</p>
+                  <p className="font-body-md text-body-md text-on-surface-variant">
+                    {service.description}
+                  </p>
                   {service.details && (
-                    <p className="font-body-md text-body-md text-on-surface-variant">{service.details}</p>
+                    <p className="font-body-md text-body-md text-on-surface-variant">
+                      {service.details}
+                    </p>
                   )}
                   {index === 0 && (
                     <div className="space-y-4 border-t border-outline-variant/30 pt-4">
@@ -97,12 +112,18 @@ function ServicesPage() {
                       </h3>
                       {processSteps.map((step) => (
                         <div key={step.title} className="flex items-start gap-4">
-                          <Icon name="circle" filled className="mt-1 text-[10px] text-outline-variant" />
+                          <Icon
+                            name="circle"
+                            filled
+                            className="mt-1 text-[10px] text-outline-variant"
+                          />
                           <div>
                             <h4 className="font-body-md text-body-md font-semibold text-primary">
                               {step.title}
                             </h4>
-                            <p className="mt-1 font-body-md text-sm text-on-surface-variant">{step.body}</p>
+                            <p className="mt-1 font-body-md text-sm text-on-surface-variant">
+                              {step.body}
+                            </p>
                           </div>
                         </div>
                       ))}

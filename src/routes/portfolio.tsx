@@ -29,7 +29,8 @@ function PortfolioPage() {
   const { data } = useSuspenseQuery(siteDataQuery);
   const [filter, setFilter] = useState<string>("All");
   const categories = ["All", ...Array.from(new Set(data.projects.map((p) => p.category)))];
-  const visible = filter === "All" ? data.projects : data.projects.filter((p) => p.category === filter);
+  const visible =
+    filter === "All" ? data.projects : data.projects.filter((p) => p.category === filter);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-on-background">

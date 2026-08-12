@@ -52,9 +52,10 @@ function AboutPage() {
               The Studio
             </h1>
             <p className="mb-6 font-body-lg text-body-lg text-on-surface-variant">
-              Styling Space is dedicated to the pursuit of minimalist luxury. We believe in the power
-              of hushed environments to restore and inspire. Our approach centers on the “Ethereal
-              Dwelling” concept—spaces that feel lighter than air, grounded in profound serenity.
+              Styling Space is dedicated to the pursuit of minimalist luxury. We believe in the
+              power of hushed environments to restore and inspire. Our approach centers on the
+              “Ethereal Dwelling” concept—spaces that feel lighter than air, grounded in profound
+              serenity.
             </p>
             <p className="font-body-md text-body-md text-on-surface-variant">
               We strip away the superfluous to reveal the essential architecture of living, creating
@@ -91,9 +92,9 @@ function AboutPage() {
               </h2>
               <h3 className="mb-6 font-headline-md text-headline-md text-primary">Elena Rostova</h3>
               <p className="mb-6 font-body-lg text-body-lg text-on-surface-variant">
-                As Lead Designer, Elena Rostova brings a visionary approach to interior architecture.
-                Her signature style is defined by an uncompromising mastery of natural light and the
-                integration of highly tactile, bespoke materials.
+                As Lead Designer, Elena Rostova brings a visionary approach to interior
+                architecture. Her signature style is defined by an uncompromising mastery of natural
+                light and the integration of highly tactile, bespoke materials.
               </p>
               <p className="font-body-md text-body-md text-on-surface-variant">
                 With over a decade of curating environments for discerning clients globally, Elena
@@ -114,7 +115,10 @@ function AboutPage() {
                 key={v.title}
                 className="group flex flex-col items-center border border-outline-variant/30 p-8 text-center transition-colors hover:bg-surface-container-low"
               >
-                <Icon name={v.icon} className="mb-6 text-[36px] text-on-surface-variant group-hover:text-secondary" />
+                <Icon
+                  name={v.icon}
+                  className="mb-6 text-[36px] text-on-surface-variant group-hover:text-secondary"
+                />
                 <h4 className="mb-4 font-label-caps text-label-caps uppercase tracking-widest text-primary">
                   {v.title}
                 </h4>
@@ -130,8 +134,12 @@ function AboutPage() {
               Selected Recognition
             </h2>
             <div className="flex flex-wrap justify-center gap-12 opacity-60">
-              <span className="font-headline-md text-headline-md font-bold text-surface-tint">Arch Digest</span>
-              <span className="font-headline-md text-headline-md italic text-surface-tint">Vogue Living</span>
+              <span className="font-headline-md text-headline-md font-bold text-surface-tint">
+                Arch Digest
+              </span>
+              <span className="font-headline-md text-headline-md italic text-surface-tint">
+                Vogue Living
+              </span>
               <span className="font-headline-md text-headline-md text-surface-tint">Monocle</span>
               <span className="font-headline-md text-headline-md uppercase tracking-wider text-surface-tint">
                 Elle Decor
@@ -141,7 +149,9 @@ function AboutPage() {
         </section>
 
         <section className="border border-outline-variant/30 bg-surface-container-low py-20 text-center">
-          <h2 className="mb-6 font-headline-md text-headline-md text-primary">Begin Your Journey</h2>
+          <h2 className="mb-6 font-headline-md text-headline-md text-primary">
+            Begin Your Journey
+          </h2>
           <p className="mx-auto mb-8 max-w-lg font-body-md text-body-md text-on-surface-variant">
             Connect with our studio to discuss realizing your vision for an ethereal dwelling.
           </p>

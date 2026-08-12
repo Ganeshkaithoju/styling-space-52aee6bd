@@ -196,7 +196,10 @@ function PortfolioEditor() {
                 className={`${fieldClass} mt-2`}
                 value={form.status}
                 onChange={(e) =>
-                  setForm({ ...form, status: e.target.value === "published" ? "published" : "draft" })
+                  setForm({
+                    ...form,
+                    status: e.target.value === "published" ? "published" : "draft",
+                  })
                 }
               >
                 <option value="draft">Draft</option>

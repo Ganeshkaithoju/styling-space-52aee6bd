@@ -33,7 +33,11 @@ function SupportPage() {
       title="Support"
       description="Enquiries and issues submitted by clients and site visitors."
       actions={
-        <select className={`${fieldClass} w-52`} value={filter} onChange={(e) => setFilter(e.target.value)}>
+        <select
+          className={`${fieldClass} w-52`}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        >
           <option value="all">All statuses</option>
           {statuses.map((s) => (
             <option key={s} value={s}>
@@ -53,7 +57,9 @@ function SupportPage() {
           <article key={m.id} className="bg-surface-container-lowest p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-body-lg text-body-lg text-on-surface">{m.subject || "No subject"}</p>
+                <p className="font-body-lg text-body-lg text-on-surface">
+                  {m.subject || "No subject"}
+                </p>
                 <p className="font-body-md text-[14px] text-on-surface-variant">
                   {m.full_name} · {m.email}
                 </p>
@@ -69,7 +75,9 @@ function SupportPage() {
                 className={`${fieldClass} w-44`}
                 value={m.status}
                 onChange={(e) =>
-                  update.mutate({ data: { id: m.id, status: e.target.value as (typeof statuses)[number] } })
+                  update.mutate({
+                    data: { id: m.id, status: e.target.value as (typeof statuses)[number] },
+                  })
                 }
               >
                 {statuses.map((s) => (

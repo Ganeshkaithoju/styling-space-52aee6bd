@@ -1,10 +1,41 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { Icon } from "@/components/Icon";
 import { buttonClass, fieldClass, labelClass } from "@/components/admin/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
+import { updateConsultationLocation } from "@/lib/public.functions";
+import { SiteFooter } from "@/components/site/SiteFooter";
+
+declare global {
+  interface Window {
+    google?: {
+      maps?: {
+        places?: {
+          Autocomplete: {
+            new (
+              input: HTMLInputElement,
+              options?: { fields: string[] },
+            ): {
+              addListener: (eventName: string, handler: () => void) => void;
+              getPlace: () => {
+                geometry?: {
+                  location?: {
+                    lat: () => number;
+                    lng: () => number;
+                  };
+                };
+                formatted_address?: string;
+                place_id?: string;
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+}
 
 export const Route = createFileRoute("/_client/dashboard")({
   component: DashboardPage,
@@ -108,10 +139,15 @@ function DashboardPage() {
               </div>
             ) : (
               consultations.map((c) => (
-                <div key={c.id} className="border border-outline-variant/60 bg-surface-container-lowest p-8">
+                <div
+                  key={c.id}
+                  className="border border-outline-variant/60 bg-surface-container-lowest p-8"
+                >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-headline-md text-[20px] text-primary">{c.service_interest}</h3>
+                      <h3 className="font-headline-md text-[20px] text-primary">
+                        {c.service_interest}
+                      </h3>
                       <p className="mt-1 font-body-md text-on-surface-variant">
                         {c.project_type} · {c.project_scope}
                       </p>
@@ -133,7 +169,16 @@ function DashboardPage() {
                       <p className="mb-1 font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
                         Location
                       </p>
-                      <p className="font-body-md text-primary">{c.location || "N/A"}</p>
+                      <p className="font-body-md text-primary">
+                        {c.property_formatted_address || c.location || "N/A"}
+                      </p>
+
+                      <div className="mt-4">
+                        <LocationEditor
+                          consultationId={c.id}
+                          initialAddress={c.property_formatted_address || ""}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -202,7 +247,7 @@ function DashboardPage() {
                     toast.error("Passwords do not match.");
                     return;
                   }
-                  
+
                   setIsUpdatingPassword(true);
                   try {
                     const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -219,33 +264,122 @@ function DashboardPage() {
               >
                 <div>
                   <label className={labelClass}>New Password</label>
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     required
                     minLength={6}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className={`${fieldClass} mt-2`} 
+                    className={`${fieldClass} mt-2`}
                   />
                 </div>
                 <div>
                   <label className={labelClass}>Confirm New Password</label>
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     required
                     minLength={6}
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className={`${fieldClass} mt-2`} 
+                    className={`${fieldClass} mt-2`}
                   />
                 </div>
-                <button type="submit" className={`${buttonClass} mt-2 max-w-fit`} disabled={isUpdatingPassword}>
+                <button
+                  type="submit"
+                  className={`${buttonClass} mt-2 max-w-fit`}
+                  disabled={isUpdatingPassword}
+                >
                   {isUpdatingPassword ? "Updating..." : "Update password"}
                 </button>
               </form>
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function LocationEditor({
+  consultationId,
+  initialAddress,
+}: {
+  consultationId: string;
+  initialAddress: string;
+}) {
+  const [address, setAddress] = useState(initialAddress);
+  const [isEditing, setIsEditing] = useState(false);
+  const actualInputRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (payload: unknown) => {
+      await updateConsultationLocation({ data: payload });
+    },
+    onSuccess: () => {
+      toast.success("Location updated successfully!");
+      qc.invalidateQueries({ queryKey: ["consultations"] });
+      setIsEditing(false);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to update location");
+    },
+  });
+
+  useEffect(() => {
+    if (!isEditing || !actualInputRef.current || !window.google?.maps?.places) return;
+
+    const autocomplete = new window.google.maps.places.Autocomplete(actualInputRef.current, {
+      fields: ["formatted_address", "geometry", "place_id"],
+    });
+
+    autocomplete.addListener("place_changed", () => {
+      const place = autocomplete.getPlace();
+      if (!place.geometry?.location) return;
+
+      const formatted = place.formatted_address || "";
+      setAddress(formatted);
+
+      mutation.mutate({
+        consultationId,
+        property_lat: place.geometry.location.lat(),
+        property_lng: place.geometry.location.lng(),
+        property_place_id: place.place_id,
+        property_formatted_address: formatted,
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
+
+  if (!isEditing) {
+    return (
+      <button
+        onClick={() => setIsEditing(true)}
+        className="text-xs text-secondary underline hover:text-primary transition-colors"
+      >
+        {initialAddress ? "Update Location" : "Set Property Location"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <input
+        ref={actualInputRef}
+        type="text"
+        placeholder="Start typing an address..."
+        className={`${fieldClass} text-sm`}
+        defaultValue={address}
+        disabled={mutation.isPending}
+      />
+      <div className="mt-2 flex items-center justify-between">
+        <span className="text-[10px] text-on-surface-variant">Powered by Google Maps</span>
+        <button
+          onClick={() => setIsEditing(false)}
+          className="text-[10px] text-secondary hover:text-primary"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

@@ -1,13 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
 export const getIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const [adminCheck, ownerCheck] = await Promise.all([
       context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" }),
-      context.supabase.rpc("has_role", { _user_id: context.userId, _role: "owner" })
+      context.supabase.rpc("has_role", { _user_id: context.userId, _role: "owner" }),
     ]);
     const isAdmin = Boolean(adminCheck.data) || Boolean(ownerCheck.data);
     const isOwner = Boolean(ownerCheck.data);
@@ -18,28 +19,50 @@ export const getOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const s = context.supabase;
-    const [projects, consultations, support, services, recent] = await Promise.all([
-      s.from("projects").select("id, status", { count: "exact" }),
-      s.from("consultations").select("id, status", { count: "exact" }),
-      s.from("support_messages").select("id, status", { count: "exact" }),
-      s.from("services").select("id", { count: "exact", head: true }),
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const [projects, consultations, support, services, recent, users] = await Promise.all([
+      s.from("projects").select("id, status"),
+      s.from("consultations").select("id, status, service_interest, created_at"),
+      s.from("support_messages").select("id, status"),
+      s.from("services").select("id, title"),
       s
         .from("consultations")
         .select("id, full_name, email, service_interest, status, created_at")
         .order("created_at", { ascending: false })
         .limit(6),
+      supabaseAdmin.auth.admin.listUsers(), // to get active users count
     ]);
 
     const cRows = consultations.data ?? [];
     const pRows = projects.data ?? [];
+    const sRows = services.data ?? [];
+    const activeUsersCount = users.data?.users ? users.data.users.length : 0; // Simple active users approximation for now
+
+    // Most Requested Services (LEFT JOIN equivalent in memory)
+    const serviceCounts = sRows
+      .map((service) => {
+        const count = cRows.filter((c) => c.service_interest === service.title).length;
+        return {
+          title: service.title,
+          count: count,
+        };
+      })
+      .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+
     return {
       projectCount: pRows.length,
       publishedProjects: pRows.filter((p) => p.status === "published").length,
       consultationCount: cRows.length,
-      newConsultations: cRows.filter((c) => c.status === "new").length,
+      pendingConsultations: cRows.filter((c) =>
+        ["new", "contacted", "scheduled"].includes(c.status),
+      ).length,
+      completedConsultations: cRows.filter((c) => c.status === "completed").length,
+      activeUsers: activeUsersCount,
       openSupport: (support.data ?? []).filter((m) => m.status === "open").length,
-      serviceCount: services.count ?? 0,
+      serviceCount: sRows.length,
       recent: recent.data ?? [],
+      mostRequestedServices: serviceCounts,
     };
   });
 
@@ -82,11 +105,23 @@ export const saveProject = createServerFn({ method: "POST" })
   .validator((input: unknown) => projectSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { id, ...values } = data;
-    const q = id
+    const isUpdate = !!id;
+    const q = isUpdate
       ? context.supabase.from("projects").update(values).eq("id", id)
-      : context.supabase.from("projects").insert(values);
-    const { error } = await q;
+      : context.supabase.from("projects").insert(values).select("id").single();
+    const { error, data: resData } = await q;
     if (error) throw new Error(error.message);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: isUpdate ? "PROJECT_UPDATED" : "PROJECT_CREATED",
+      entityType: "project",
+      entityId: id || resData?.id,
+      description: isUpdate ? `Updated Project` : `Created Project`,
+      newData: values,
+    });
+
     return { ok: true };
   });
 
@@ -97,6 +132,16 @@ export const deleteProject = createServerFn({ method: "POST" })
     await context.supabase.from("project_images").delete().eq("project_id", data.id);
     const { error } = await context.supabase.from("projects").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "PROJECT_DELETED",
+      entityType: "project",
+      entityId: data.id,
+      description: "Deleted Project",
+    });
+
     return { ok: true };
   });
 
@@ -135,10 +180,7 @@ export const saveContent = createServerFn({ method: "POST" })
 export const listServicesAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("services")
-      .select("*")
-      .order("sort_order");
+    const { data, error } = await context.supabase.from("services").select("*").order("sort_order");
     if (error) throw new Error(error.message);
     return data ?? [];
   });
@@ -158,8 +200,23 @@ export const createService = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("services").insert(data);
+    const { error, data: inserted } = await context.supabase
+      .from("services")
+      .insert(data)
+      .select("id")
+      .single();
     if (error) throw new Error(error.message);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "SERVICE_CREATED",
+      entityType: "service",
+      entityId: inserted?.id,
+      description: "Created Service",
+      newData: data,
+    });
+
     return { ok: true };
   });
 
@@ -182,6 +239,17 @@ export const updateService = createServerFn({ method: "POST" })
     const { id, ...values } = data;
     const { error } = await context.supabase.from("services").update(values).eq("id", id);
     if (error) throw new Error(error.message);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "SERVICE_UPDATED",
+      entityType: "service",
+      entityId: id,
+      description: "Updated Service",
+      newData: values,
+    });
+
     return { ok: true };
   });
 
@@ -191,11 +259,20 @@ export const deleteService = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("services").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "SERVICE_DELETED",
+      entityType: "service",
+      entityId: data.id,
+      description: "Deleted Service",
+    });
+
     return { ok: true };
   });
 
 export const saveService = updateService; // Backwards compatibility for now
-
 
 /* ------------------------------- consultations ------------------------------- */
 
@@ -229,11 +306,50 @@ export const updateConsultation = createServerFn({ method: "POST" })
       .eq("id", id)
       .select("email, user_id, status")
       .single();
-    
+
     if (error) throw new Error(error.message);
 
-    // Scaffold Centralized Email Service (TODO: Implement Resend integration)
-    console.log(`[Email Service Scaffold] Sending Status Update (${updatedData.status}) to ${updatedData.email} (User: ${updatedData.user_id})`);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "CONSULTATION_STATUS_CHANGED",
+      entityType: "consultation",
+      entityId: id,
+      description: `Status changed to ${values.status}`,
+      newData: values,
+    });
+
+    // 4. Send Email Notification via Resend
+    try {
+      const { Resend } = await import("resend");
+      const resendApiKey = process.env.RESEND_API_KEY;
+      if (resendApiKey && updatedData.email) {
+        const resend = new Resend(resendApiKey);
+
+        let messageHtml = `<p>Hi there,</p>`;
+        if (values.status === "contacted") {
+          messageHtml += `<p>We have reviewed your consultation request and will be in touch with you very soon!</p>`;
+        } else if (values.status === "scheduled") {
+          messageHtml += `<p>Your consultation has been officially scheduled. Please log in to your Client Portal for details.</p>`;
+        } else if (values.status === "completed") {
+          messageHtml += `<p>Your consultation is complete. Thank you for choosing Styling Space!</p>`;
+        } else {
+          messageHtml += `<p>The status of your consultation has been updated to: <strong>${values.status}</strong>.</p>`;
+        }
+        messageHtml += `<br/><p>Best regards,</p><p>The Styling Space Team</p>`;
+
+        await resend.emails.send({
+          from: "Styling Space <noreply@resend.dev>",
+          to: [updatedData.email],
+          subject: "Consultation Status Update - Styling Space",
+          html: messageHtml,
+        });
+      } else {
+        console.warn("RESEND_API_KEY or email is missing. Status update email not sent.");
+      }
+    } catch (emailError) {
+      console.error("Failed to send status update email:", emailError);
+    }
 
     return { ok: true };
   });
@@ -366,7 +482,12 @@ export const createAdminFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { createAdmin } = await import("./services/user.service");
-    const user = await createAdmin(context.userId, data.email, data.fullName, data.role as any);
+    const user = await createAdmin(
+      context.userId,
+      data.email,
+      data.fullName,
+      data.role as Database["public"]["Enums"]["app_role"],
+    );
     return { ok: true, user };
   });
 
@@ -429,7 +550,8 @@ export const updateRoleFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { updateRole } = await import("./services/user.service");
-    await updateRole(context.userId, data.targetUserId, data.role as any);
+    const appRole = data.role as Database["public"]["Enums"]["app_role"];
+    await updateRole(context.userId, data.targetUserId, appRole);
     return { ok: true };
   });
 
@@ -446,4 +568,43 @@ export const transferOwnershipFn = createServerFn({ method: "POST" })
     const { transferOwnership } = await import("./services/user.service");
     await transferOwnership(context.userId, data.targetAdminId);
     return { ok: true };
+  });
+
+/* ---------------------------------- audit --------------------------------- */
+
+export const listAuditLogsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(50),
+        action: z.string().optional(),
+        entityType: z.string().optional(),
+      })
+      .parse(input || {}),
+  )
+  .handler(async ({ data, context }) => {
+    let query = context.supabase
+      .from("audit_logs")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false });
+
+    if (data.action) query = query.eq("action", data.action);
+    if (data.entityType) query = query.eq("entity_type", data.entityType);
+
+    const from = (data.page - 1) * data.pageSize;
+    const to = from + data.pageSize - 1;
+    query = query.range(from, to);
+
+    const { data: logs, error, count } = await query;
+    if (error) throw new Error(error.message);
+
+    return {
+      logs: logs ?? [],
+      totalCount: count ?? 0,
+      page: data.page,
+      pageSize: data.pageSize,
+      totalPages: Math.ceil((count ?? 0) / data.pageSize),
+    };
   });

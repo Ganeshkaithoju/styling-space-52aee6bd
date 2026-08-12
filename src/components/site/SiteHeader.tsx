@@ -51,7 +51,10 @@ export function SiteHeader() {
   return (
     <nav className="fixed top-0 z-50 w-full border-b border-outline-variant/30 bg-surface/90 backdrop-blur-md">
       <div className="mx-auto flex h-20 max-w-container-max items-center justify-between px-margin-mobile md:px-margin-desktop">
-        <Link to="/" className="font-headline-md text-[22px] tracking-tight text-primary md:text-headline-md">
+        <Link
+          to="/"
+          className="font-headline-md text-[22px] tracking-tight text-primary md:text-headline-md"
+        >
           Styling Space
         </Link>
 

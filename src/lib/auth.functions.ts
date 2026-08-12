@@ -16,17 +16,17 @@ export const createVerificationAttempt = createServerFn({ method: "POST" })
       .object({
         userId: z.string().uuid(),
       })
-      .parse(input)
+      .parse(input),
   )
   .handler(async ({ data }) => {
     // We encrypt the userId + timestamp to create the opaque attempt token
     const iv = crypto.randomBytes(16);
     const key = getSecretKey();
     const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-    
+
     const payload = JSON.stringify({
       userId: data.userId,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     });
 
     let encrypted = cipher.update(payload, "utf8", "hex");
@@ -44,7 +44,7 @@ export const checkVerificationStatus = createServerFn({ method: "POST" })
       .object({
         token: z.string(),
       })
-      .parse(input)
+      .parse(input),
   )
   .handler(async ({ data }) => {
     try {
@@ -56,34 +56,34 @@ export const checkVerificationStatus = createServerFn({ method: "POST" })
       const key = getSecretKey();
       const iv = Buffer.from(ivHex, "hex");
       const authTag = Buffer.from(authTagHex, "hex");
-      
+
       const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
       decipher.setAuthTag(authTag);
-      
+
       let decrypted = decipher.update(encryptedHex, "hex", "utf8");
       decrypted += decipher.final("utf8");
-      
+
       const payload = JSON.parse(decrypted);
       const { userId, createdAt } = payload;
-      
+
       // Enforce 15-minute expiration
       if (Date.now() - createdAt > 15 * 60 * 1000) {
         return { confirmed: false, expired: true };
       }
-      
+
       // Import the server-side supabaseAdmin
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      
+
       // Narrow administrative lookup
       const { data: userData, error } = await supabaseAdmin.auth.admin.getUserById(userId);
-      
+
       if (error || !userData.user) {
         return { confirmed: false, expired: true }; // Consider invalid users as expired
       }
-      
-      return { 
-        confirmed: !!userData.user.email_confirmed_at, 
-        expired: false 
+
+      return {
+        confirmed: !!userData.user.email_confirmed_at,
+        expired: false,
       };
     } catch (err) {
       // Any decryption error implies an invalid/tampered token
@@ -97,7 +97,7 @@ export const checkPasswordResetEligibility = createServerFn({ method: "POST" })
       .object({
         email: z.string().email(),
       })
-      .parse(input)
+      .parse(input),
   )
   .handler(async ({ data }) => {
     // Basic rate limiting could be implemented here via Redis or DB timestamps.
@@ -121,7 +121,7 @@ export const checkPasswordResetEligibility = createServerFn({ method: "POST" })
 
     // Fallback check against auth.users in case the profile trigger failed
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-    
+
     if (authError) {
       // Fail closed or generic
       return { exists: false };

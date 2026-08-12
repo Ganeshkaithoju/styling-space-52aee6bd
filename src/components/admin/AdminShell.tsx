@@ -12,6 +12,7 @@ const nav = [
   { to: "/admin/consultations", label: "Consultations", icon: "event_note" },
   { to: "/admin/support", label: "Support", icon: "support_agent" },
   { to: "/admin/users", label: "User Management", icon: "group" },
+  { to: "/admin/audit", label: "Audit Logs", icon: "manage_search" },
   { to: "/admin/profile", label: "Profile", icon: "person" },
   { to: "/admin/settings", label: "Settings", icon: "settings" },
 ] as const;

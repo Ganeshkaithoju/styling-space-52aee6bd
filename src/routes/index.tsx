@@ -70,7 +70,10 @@ function Home() {
           </div>
         </section>
 
-        <section id="services" className="bg-surface px-margin-mobile py-[120px] md:px-margin-desktop">
+        <section
+          id="services"
+          className="bg-surface px-margin-mobile py-[120px] md:px-margin-desktop"
+        >
           <div className="mx-auto max-w-container-max">
             <div className="grid grid-cols-1 gap-gutter md:grid-cols-3">
               {services.map((s) => (
@@ -94,7 +97,10 @@ function Home() {
           </div>
         </section>
 
-        <section id="portfolio" className="bg-surface-container-low px-margin-mobile py-[120px] md:px-margin-desktop md:py-[160px]">
+        <section
+          id="portfolio"
+          className="bg-surface-container-low px-margin-mobile py-[120px] md:px-margin-desktop md:py-[160px]"
+        >
           <div className="mx-auto max-w-container-max">
             <div className="mb-16 flex items-end justify-between border-b border-outline-variant/50 pb-8">
               <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-primary md:text-headline-lg">
@@ -124,7 +130,9 @@ function Home() {
                   </div>
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="font-headline-md text-headline-md text-primary">{hero.title}</h4>
+                      <h4 className="font-headline-md text-headline-md text-primary">
+                        {hero.title}
+                      </h4>
                       <p className="font-body-md text-body-md text-on-surface-variant">
                         {hero.category} • {hero.subtitle ?? hero.location}
                       </p>
@@ -196,7 +204,13 @@ function CategorySpotlight({
   alt = false,
 }: {
   title: string;
-  items: { id: string; slug: string; title: string; description: string | null; cover_image_url: string | null }[];
+  items: {
+    id: string;
+    slug: string;
+    title: string;
+    description: string | null;
+    cover_image_url: string | null;
+  }[];
   alt?: boolean;
 }) {
   if (items.length === 0) return null;
@@ -216,7 +230,10 @@ function CategorySpotlight({
             className="group inline-flex items-center gap-2 font-label-caps text-label-caps uppercase tracking-widest text-secondary transition-colors hover:text-primary"
           >
             Explore Category
-            <Icon name="arrow_forward" className="text-[16px] transition-transform group-hover:translate-x-1" />
+            <Icon
+              name="arrow_forward"
+              className="text-[16px] transition-transform group-hover:translate-x-1"
+            />
           </Link>
         </div>
         <div className="grid grid-cols-1 gap-gutter md:grid-cols-3">

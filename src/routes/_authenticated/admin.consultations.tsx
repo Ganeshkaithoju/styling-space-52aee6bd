@@ -2,7 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { AdminShell, StatusPill, fieldClass, ghostButtonClass } from "@/components/admin/AdminShell";
+import {
+  AdminShell,
+  StatusPill,
+  fieldClass,
+  ghostButtonClass,
+} from "@/components/admin/AdminShell";
 import { listConsultations, updateConsultation } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/consultations")({
@@ -13,7 +18,10 @@ const statuses = ["new", "contacted", "scheduled", "completed", "archived"] as c
 
 function ConsultationsPage() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["admin", "consultations"], queryFn: () => listConsultations() });
+  const { data } = useQuery({
+    queryKey: ["admin", "consultations"],
+    queryFn: () => listConsultations(),
+  });
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -34,7 +42,11 @@ function ConsultationsPage() {
       title="Consultations"
       description="Every booking request from the public site, with status and designer assignment."
       actions={
-        <select className={`${fieldClass} w-52`} value={filter} onChange={(e) => setFilter(e.target.value)}>
+        <select
+          className={`${fieldClass} w-52`}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        >
           <option value="all">All statuses</option>
           {statuses.map((s) => (
             <option key={s} value={s}>
@@ -46,7 +58,9 @@ function ConsultationsPage() {
     >
       <div className="border border-outline-variant/60">
         {rows.length === 0 && (
-          <p className="p-8 font-body-md text-body-md text-on-surface-variant">No requests here yet.</p>
+          <p className="p-8 font-body-md text-body-md text-on-surface-variant">
+            No requests here yet.
+          </p>
         )}
         {rows.map((c) => (
           <div key={c.id} className="border-b border-outline-variant/40 last:border-b-0">
@@ -97,8 +111,6 @@ function ConsultationsPage() {
                   ["Scope", c.project_scope],
                   ["Timeline", c.timeline],
                   ["Budget", c.budget_range],
-                  ["Location", c.location],
-                  ["Address", c.property_address],
                   ["Preferred date", c.preferred_date],
                   ["Preferred time", c.preferred_time],
                 ].map(([label, value]) => (
@@ -109,11 +121,36 @@ function ConsultationsPage() {
                     <p className="mt-2 font-body-md text-body-md text-on-surface">{value || "—"}</p>
                   </div>
                 ))}
+
+                <div className="md:col-span-3">
+                  <p className="font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">
+                    Property Location
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <p className="font-body-md text-body-md text-on-surface">
+                      {c.property_formatted_address || c.property_address || c.location || "—"}
+                    </p>
+                    {c.property_lat && c.property_lng && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${c.property_lat},${c.property_lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-secondary underline flex items-center gap-1 hover:text-primary"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">map</span>
+                        View Map
+                      </a>
+                    )}
+                  </div>
+                </div>
+
                 <div className="md:col-span-3">
                   <p className="font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">
                     Message
                   </p>
-                  <p className="mt-2 font-body-md text-body-md text-on-surface">{c.message || "—"}</p>
+                  <p className="mt-2 font-body-md text-body-md text-on-surface">
+                    {c.message || "—"}
+                  </p>
                 </div>
                 <div className="md:col-span-2">
                   <p className="font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">

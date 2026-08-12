@@ -20,6 +20,7 @@ import { Route as ServicesRouteImport } from './routes/services'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as ClientDashboardRouteImport } from './routes/_client.dashboard'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin.audit'
 import { Route as AuthenticatedAdminConsultationsRouteImport } from './routes/_authenticated/admin.consultations'
 import { Route as AuthenticatedAdminContentRouteImport } from './routes/_authenticated/admin.content'
 import { Route as AuthenticatedAdminPortfolioRouteImport } from './routes/_authenticated/admin.portfolio'
@@ -82,6 +83,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminAuditRoute = AuthenticatedAdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminConsultationsRoute =
   AuthenticatedAdminConsultationsRouteImport.update({
     id: '/consultations',
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/services': typeof ServicesRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/dashboard': typeof ClientDashboardRoute
+  '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/consultations': typeof AuthenticatedAdminConsultationsRoute
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/portfolio': typeof AuthenticatedAdminPortfolioRoute
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/portfolio': typeof PortfolioRoute
   '/services': typeof ServicesRoute
   '/dashboard': typeof ClientDashboardRoute
+  '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/consultations': typeof AuthenticatedAdminConsultationsRoute
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/portfolio': typeof AuthenticatedAdminPortfolioRoute
@@ -179,6 +187,7 @@ export interface FileRoutesById {
   '/services': typeof ServicesRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_client/dashboard': typeof ClientDashboardRoute
+  '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/consultations': typeof AuthenticatedAdminConsultationsRoute
   '/_authenticated/admin/content': typeof AuthenticatedAdminContentRoute
   '/_authenticated/admin/portfolio': typeof AuthenticatedAdminPortfolioRoute
@@ -200,6 +209,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/admin'
     | '/dashboard'
+    | '/admin/audit'
     | '/admin/consultations'
     | '/admin/content'
     | '/admin/portfolio'
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/services'
     | '/dashboard'
+    | '/admin/audit'
     | '/admin/consultations'
     | '/admin/content'
     | '/admin/portfolio'
@@ -239,6 +250,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/_authenticated/admin'
     | '/_client/dashboard'
+    | '/_authenticated/admin/audit'
     | '/_authenticated/admin/consultations'
     | '/_authenticated/admin/content'
     | '/_authenticated/admin/portfolio'
@@ -340,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/audit': {
+      id: '/_authenticated/admin/audit'
+      path: '/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AuthenticatedAdminAuditRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/consultations': {
       id: '/_authenticated/admin/consultations'
       path: '/consultations'
@@ -400,6 +419,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminConsultationsRoute: typeof AuthenticatedAdminConsultationsRoute
   AuthenticatedAdminContentRoute: typeof AuthenticatedAdminContentRoute
   AuthenticatedAdminPortfolioRoute: typeof AuthenticatedAdminPortfolioRoute
@@ -412,6 +432,7 @@ interface AuthenticatedAdminRouteChildren {
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
   AuthenticatedAdminConsultationsRoute: AuthenticatedAdminConsultationsRoute,
   AuthenticatedAdminContentRoute: AuthenticatedAdminContentRoute,
   AuthenticatedAdminPortfolioRoute: AuthenticatedAdminPortfolioRoute,

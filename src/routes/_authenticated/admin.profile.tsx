@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/admin/profile")({
 function ProfilePage() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["admin", "profile"], queryFn: () => getProfile() });
-  
+
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
@@ -49,19 +49,23 @@ function ProfilePage() {
         <div className="grid gap-6 md:grid-cols-2">
           <div>
             <label className={labelClass}>Full name</label>
-            <input name="full_name" defaultValue={data?.full_name ?? ""} className={`${fieldClass} mt-2`} />
+            <input
+              name="full_name"
+              defaultValue={data?.full_name ?? ""}
+              className={`${fieldClass} mt-2`}
+            />
           </div>
           <div>
             <label className={labelClass}>Job title</label>
-            <input name="job_title" defaultValue={data?.job_title ?? ""} className={`${fieldClass} mt-2`} />
+            <input
+              name="job_title"
+              defaultValue={data?.job_title ?? ""}
+              className={`${fieldClass} mt-2`}
+            />
           </div>
           <div>
             <label className={labelClass}>Email</label>
-            <input
-              value={data?.email ?? ""}
-              readOnly
-              className={`${fieldClass} mt-2 opacity-60`}
-            />
+            <input value={data?.email ?? ""} readOnly className={`${fieldClass} mt-2 opacity-60`} />
           </div>
           <div>
             <label className={labelClass}>Phone</label>
@@ -69,11 +73,20 @@ function ProfilePage() {
           </div>
           <div className="md:col-span-2">
             <label className={labelClass}>Avatar URL</label>
-            <input name="avatar_url" defaultValue={data?.avatar_url ?? ""} className={`${fieldClass} mt-2`} />
+            <input
+              name="avatar_url"
+              defaultValue={data?.avatar_url ?? ""}
+              className={`${fieldClass} mt-2`}
+            />
           </div>
           <div className="md:col-span-2">
             <label className={labelClass}>Bio</label>
-            <textarea name="bio" rows={5} defaultValue={data?.bio ?? ""} className={`${fieldClass} mt-2`} />
+            <textarea
+              name="bio"
+              rows={5}
+              defaultValue={data?.bio ?? ""}
+              className={`${fieldClass} mt-2`}
+            />
           </div>
         </div>
         <button type="submit" className={`${buttonClass} mt-8`} disabled={save.isPending}>
@@ -95,7 +108,7 @@ function ProfilePage() {
               toast.error("Passwords do not match.");
               return;
             }
-            
+
             setIsUpdatingPassword(true);
             try {
               const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -112,27 +125,31 @@ function ProfilePage() {
         >
           <div>
             <label className={labelClass}>New Password</label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               required
               minLength={6}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className={`${fieldClass} mt-2`} 
+              className={`${fieldClass} mt-2`}
             />
           </div>
           <div>
             <label className={labelClass}>Confirm New Password</label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               required
               minLength={6}
               value={confirmNewPassword}
               onChange={(e) => setConfirmNewPassword(e.target.value)}
-              className={`${fieldClass} mt-2`} 
+              className={`${fieldClass} mt-2`}
             />
           </div>
-          <button type="submit" className={`${buttonClass} mt-2 max-w-fit`} disabled={isUpdatingPassword}>
+          <button
+            type="submit"
+            className={`${buttonClass} mt-2 max-w-fit`}
+            disabled={isUpdatingPassword}
+          >
             {isUpdatingPassword ? "Updating..." : "Update password"}
           </button>
         </form>

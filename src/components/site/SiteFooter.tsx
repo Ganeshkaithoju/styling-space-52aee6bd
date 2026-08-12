@@ -14,23 +14,40 @@ export function SiteFooter() {
         </div>
 
         <div className="flex flex-col gap-4 font-body-md text-body-md">
-          <Link to="/portfolio" className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline">
+          <Link
+            to="/portfolio"
+            className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline"
+          >
             Portfolio
           </Link>
-          <Link to="/services" className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline">
+          <Link
+            to="/services"
+            className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline"
+          >
             Services
           </Link>
-          <Link to="/about" className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline">
+          <Link
+            to="/about"
+            className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline"
+          >
             About
           </Link>
-          <Link to="/consultation" className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline">
+          <Link
+            to="/consultation"
+            className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline"
+          >
             Book Consultation
           </Link>
         </div>
 
         <div className="flex flex-col gap-4 font-body-md text-body-md md:text-right">
-          <p className="text-on-surface">© {new Date().getFullYear()} Styling Space Interior Designs. All rights reserved.</p>
-          <Link to="/auth" className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline">
+          <p className="text-on-surface">
+            © {new Date().getFullYear()} Styling Space Interior Designs. All rights reserved.
+          </p>
+          <Link
+            to="/auth"
+            className="text-on-surface-variant underline-offset-4 hover:text-secondary hover:underline"
+          >
             Studio Login
           </Link>
         </div>

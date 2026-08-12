@@ -3,7 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AdminShell, buttonClass, fieldClass, labelClass } from "@/components/admin/AdminShell";
-import { listServicesAdmin, createService, updateService, deleteService } from "@/lib/admin.functions";
+import {
+  listServicesAdmin,
+  createService,
+  updateService,
+  deleteService,
+} from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/services")({
   component: ServicesPage,
@@ -11,7 +16,10 @@ export const Route = createFileRoute("/_authenticated/admin/services")({
 
 function ServicesPage() {
   const qc = useQueryClient();
-  const { data: services } = useQuery({ queryKey: ["admin", "services"], queryFn: () => listServicesAdmin() });
+  const { data: services } = useQuery({
+    queryKey: ["admin", "services"],
+    queryFn: () => listServicesAdmin(),
+  });
   const [isCreating, setIsCreating] = useState(false);
 
   const createMutation = useMutation({
@@ -88,11 +96,22 @@ function ServicesPage() {
               </div>
               <div className="md:col-span-2">
                 <label className={labelClass}>Title</label>
-                <input name="title" placeholder="Service Name" className={`${fieldClass} mt-2`} required />
+                <input
+                  name="title"
+                  placeholder="Service Name"
+                  className={`${fieldClass} mt-2`}
+                  required
+                />
               </div>
               <div>
                 <label className={labelClass}>Order</label>
-                <input name="sort_order" type="number" min={0} defaultValue={0} className={`${fieldClass} mt-2`} />
+                <input
+                  name="sort_order"
+                  type="number"
+                  min={0}
+                  defaultValue={0}
+                  className={`${fieldClass} mt-2`}
+                />
               </div>
             </div>
             <div className="mt-6 grid gap-6 md:grid-cols-2">
@@ -116,7 +135,11 @@ function ServicesPage() {
               <button type="submit" className={buttonClass} disabled={createMutation.isPending}>
                 Create service
               </button>
-              <button type="button" onClick={() => setIsCreating(false)} className="px-4 font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-primary">
+              <button
+                type="button"
+                onClick={() => setIsCreating(false)}
+                className="px-4 font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-primary"
+              >
                 Cancel
               </button>
             </div>
@@ -156,11 +179,21 @@ function ServicesPage() {
             <div className="grid gap-6 md:grid-cols-4">
               <div>
                 <label className={labelClass}>Number</label>
-                <input name="number" defaultValue={row.number} className={`${fieldClass} mt-2`} required />
+                <input
+                  name="number"
+                  defaultValue={row.number}
+                  className={`${fieldClass} mt-2`}
+                  required
+                />
               </div>
               <div className="md:col-span-2">
                 <label className={labelClass}>Title</label>
-                <input name="title" defaultValue={row.title} className={`${fieldClass} mt-2`} required />
+                <input
+                  name="title"
+                  defaultValue={row.title}
+                  className={`${fieldClass} mt-2`}
+                  required
+                />
               </div>
               <div>
                 <label className={labelClass}>Order</label>

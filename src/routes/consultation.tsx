@@ -18,7 +18,10 @@ export const Route = createFileRoute("/consultation")({
           "Share your vision and schedule a private consultation with the Styling Space design studio.",
       },
       { property: "og:title", content: "Book a Consultation — Styling Space" },
-      { property: "og:description", content: "Schedule a private consultation with our design studio." },
+      {
+        property: "og:description",
+        content: "Schedule a private consultation with our design studio.",
+      },
     ],
   }),
   beforeLoad: async () => {
@@ -89,7 +92,8 @@ function ConsultationPage() {
 
   const field =
     "w-full border-0 border-b border-outline-variant/60 bg-transparent pt-2 pb-3 font-body-lg text-body-lg text-primary outline-none focus:border-primary";
-  const label = "block font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant";
+  const label =
+    "block font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant";
   const primaryBtn =
     "bg-primary px-8 py-4 font-label-caps text-label-caps uppercase tracking-widest text-on-primary transition-colors hover:bg-secondary disabled:opacity-60";
   const ghostBtn =
@@ -122,6 +126,20 @@ function ConsultationPage() {
               A confirmation email with meeting details will follow shortly. We look forward to
               discussing your space.
             </p>
+            <div className="mt-8 bg-surface-container-low p-6 border border-outline-variant/50 text-left">
+              <h2 className="font-headline-md text-[18px] text-primary">Next Steps</h2>
+              <p className="mt-2 font-body-md text-on-surface-variant">
+                If your project is located at a specific property, please visit your Client Portal
+                to update the property location. This helps our designers prepare accurately for
+                your consultation.
+              </p>
+              <Link
+                to="/_client/dashboard"
+                className="mt-4 inline-block font-label-caps text-xs text-secondary underline hover:text-primary transition-colors"
+              >
+                Go to Client Portal
+              </Link>
+            </div>
             <Link to="/" className={`mt-10 inline-block ${primaryBtn}`}>
               Return Home
             </Link>
@@ -152,7 +170,9 @@ function ConsultationPage() {
 
               {step === 1 && (
                 <div>
-                  <h1 className="mb-8 font-headline-md text-headline-md text-primary">Select a Service</h1>
+                  <h1 className="mb-8 font-headline-md text-headline-md text-primary">
+                    Select a Service
+                  </h1>
                   <div className="space-y-4">
                     {data.services.map((s) => (
                       <button
@@ -182,56 +202,121 @@ function ConsultationPage() {
 
               {step === 2 && (
                 <div>
-                  <h1 className="mb-4 font-headline-md text-headline-md text-primary">Project Details</h1>
+                  <h1 className="mb-4 font-headline-md text-headline-md text-primary">
+                    Project Details
+                  </h1>
                   <p className="mb-10 max-w-2xl font-body-lg text-body-lg text-on-surface-variant">
                     Help us understand the scope and aspirations for your space.
                   </p>
                   <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                     <div>
-                      <label className={label} htmlFor="location">Project Location</label>
-                      <input id="location" className={field} value={form.location} onChange={(e) => set("location", e.target.value)} />
+                      <label className={label} htmlFor="location">
+                        Project Location
+                      </label>
+                      <input
+                        id="location"
+                        className={field}
+                        value={form.location}
+                        onChange={(e) => set("location", e.target.value)}
+                      />
                     </div>
                     <div>
-                      <label className={label} htmlFor="ptype">Project Type</label>
-                      <select id="ptype" className={field} value={form.project_type} onChange={(e) => set("project_type", e.target.value)}>
-                        {types.map((t) => <option key={t}>{t}</option>)}
+                      <label className={label} htmlFor="ptype">
+                        Project Type
+                      </label>
+                      <select
+                        id="ptype"
+                        className={field}
+                        value={form.project_type}
+                        onChange={(e) => set("project_type", e.target.value)}
+                      >
+                        {types.map((t) => (
+                          <option key={t}>{t}</option>
+                        ))}
                       </select>
                     </div>
                     <div>
-                      <label className={label} htmlFor="scope">Estimated Scope</label>
-                      <select id="scope" className={field} value={form.project_scope} onChange={(e) => set("project_scope", e.target.value)}>
-                        {scopes.map((t) => <option key={t}>{t}</option>)}
+                      <label className={label} htmlFor="scope">
+                        Estimated Scope
+                      </label>
+                      <select
+                        id="scope"
+                        className={field}
+                        value={form.project_scope}
+                        onChange={(e) => set("project_scope", e.target.value)}
+                      >
+                        {scopes.map((t) => (
+                          <option key={t}>{t}</option>
+                        ))}
                       </select>
                     </div>
                     <div>
-                      <label className={label} htmlFor="timeline">Expected Timeline</label>
-                      <select id="timeline" className={field} value={form.timeline} onChange={(e) => set("timeline", e.target.value)}>
-                        {timelines.map((t) => <option key={t}>{t}</option>)}
+                      <label className={label} htmlFor="timeline">
+                        Expected Timeline
+                      </label>
+                      <select
+                        id="timeline"
+                        className={field}
+                        value={form.timeline}
+                        onChange={(e) => set("timeline", e.target.value)}
+                      >
+                        {timelines.map((t) => (
+                          <option key={t}>{t}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="md:col-span-2">
-                      <label className={label} htmlFor="budget">Estimated Budget (Optional)</label>
-                      <input id="budget" className={field} value={form.budget_range} onChange={(e) => set("budget_range", e.target.value)} />
+                      <label className={label} htmlFor="budget">
+                        Estimated Budget (Optional)
+                      </label>
+                      <input
+                        id="budget"
+                        className={field}
+                        value={form.budget_range}
+                        onChange={(e) => set("budget_range", e.target.value)}
+                      />
                     </div>
                     <div className="md:col-span-2">
-                      <label className={label} htmlFor="vision">Your Vision</label>
-                      <textarea id="vision" rows={4} className={field} value={form.message} onChange={(e) => set("message", e.target.value)} />
+                      <label className={label} htmlFor="vision">
+                        Your Vision
+                      </label>
+                      <textarea
+                        id="vision"
+                        rows={4}
+                        className={field}
+                        value={form.message}
+                        onChange={(e) => set("message", e.target.value)}
+                      />
                     </div>
                   </div>
                   <div className="mt-12 flex justify-between">
-                    <button type="button" className={ghostBtn} onClick={() => setStep(1)}>Back</button>
-                    <button type="button" className={primaryBtn} onClick={() => setStep(3)}>Continue to Schedule</button>
+                    <button type="button" className={ghostBtn} onClick={() => setStep(1)}>
+                      Back
+                    </button>
+                    <button type="button" className={primaryBtn} onClick={() => setStep(3)}>
+                      Continue to Schedule
+                    </button>
                   </div>
                 </div>
               )}
 
               {step === 3 && (
                 <div>
-                  <h1 className="mb-8 font-headline-md text-headline-md text-primary">Select a Time</h1>
+                  <h1 className="mb-8 font-headline-md text-headline-md text-primary">
+                    Select a Time
+                  </h1>
                   <div className="grid grid-cols-1 gap-12 md:grid-cols-2">
                     <div>
-                      <label className={label} htmlFor="date">Preferred Date</label>
-                      <input id="date" type="date" className={field} value={form.preferred_date} onChange={(e) => set("preferred_date", e.target.value)} />
+                      <label className={label} htmlFor="date">
+                        Preferred Date
+                      </label>
+                      <input
+                        id="date"
+                        type="date"
+                        className={field}
+                        value={form.preferred_date}
+                        onChange={(e) => set("preferred_date", e.target.value)}
+                      />
                     </div>
                     <div>
                       <h3 className="mb-6 border-b border-outline-variant/40 pb-3 font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">
@@ -244,7 +329,9 @@ function ConsultationPage() {
                             type="button"
                             onClick={() => set("preferred_time", t)}
                             className={`w-full border px-6 py-4 text-left font-body-md text-body-md text-primary transition-colors ${
-                              form.preferred_time === t ? "border-primary bg-surface-container-low" : "border-outline-variant/50 hover:border-primary"
+                              form.preferred_time === t
+                                ? "border-primary bg-surface-container-low"
+                                : "border-outline-variant/50 hover:border-primary"
                             }`}
                           >
                             {t}
@@ -254,28 +341,48 @@ function ConsultationPage() {
                     </div>
                   </div>
                   <div className="mt-12 flex justify-between">
-                    <button type="button" className={ghostBtn} onClick={() => setStep(2)}>Back</button>
-                    <button type="button" className={primaryBtn} onClick={() => setStep(4)}>Continue</button>
+                    <button type="button" className={ghostBtn} onClick={() => setStep(2)}>
+                      Back
+                    </button>
+                    <button type="button" className={primaryBtn} onClick={() => setStep(4)}>
+                      Continue
+                    </button>
                   </div>
                 </div>
               )}
 
               {step === 4 && (
                 <div>
-                  <h1 className="mb-4 font-headline-md text-headline-md text-primary">Your Information</h1>
+                  <h1 className="mb-4 font-headline-md text-headline-md text-primary">
+                    Your Information
+                  </h1>
                   <p className="mb-10 max-w-2xl font-body-md text-body-md text-on-surface-variant">
-                    Please provide your details to confirm the consultation. Your information will be
-                    kept strictly confidential.
+                    Please provide your details to confirm the consultation. Your information will
+                    be kept strictly confidential.
                   </p>
                   <div className="max-w-xl space-y-8">
                     <div>
-                      <label className={label} htmlFor="address">Property Address (Optional)</label>
-                      <input id="address" className={field} value={form.property_address} onChange={(e) => set("property_address", e.target.value)} />
+                      <label className={label} htmlFor="address">
+                        Property Address (Optional)
+                      </label>
+                      <input
+                        id="address"
+                        className={field}
+                        value={form.property_address}
+                        onChange={(e) => set("property_address", e.target.value)}
+                      />
                     </div>
                   </div>
                   <div className="mt-12 flex justify-between">
-                    <button type="button" className={ghostBtn} onClick={() => setStep(3)}>Back to Time</button>
-                    <button type="button" className={primaryBtn} disabled={saving} onClick={confirm}>
+                    <button type="button" className={ghostBtn} onClick={() => setStep(3)}>
+                      Back to Time
+                    </button>
+                    <button
+                      type="button"
+                      className={primaryBtn}
+                      disabled={saving}
+                      onClick={confirm}
+                    >
                       {saving ? "Confirming…" : "Confirm Booking"}
                     </button>
                   </div>
@@ -293,7 +400,9 @@ function ConsultationPage() {
                     <p className="mb-1 font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
                       Selected Service
                     </p>
-                    <p className="font-headline-md text-[20px] text-primary">{form.service_interest}</p>
+                    <p className="font-headline-md text-[20px] text-primary">
+                      {form.service_interest}
+                    </p>
                   </div>
                   <div className="h-[1px] w-full bg-outline-variant/30" />
                   <div>
@@ -310,7 +419,9 @@ function ConsultationPage() {
                       Date &amp; Time
                     </p>
                     <p className="font-body-md text-body-md text-primary">
-                      {form.preferred_date ? `${form.preferred_date} · ${form.preferred_time}` : "Pending Selection"}
+                      {form.preferred_date
+                        ? `${form.preferred_date} · ${form.preferred_time}`
+                        : "Pending Selection"}
                     </p>
                   </div>
                   <div className="pt-4">

@@ -26,11 +26,7 @@ const bySlug: Record<string, string> = {
 
 const fallbacks = [laurel, atelier, nordic, coastal, maison];
 
-export function projectImage(
-  slug: string,
-  coverImageUrl?: string | null,
-  index = 0,
-): string {
+export function projectImage(slug: string, coverImageUrl?: string | null, index = 0): string {
   if (coverImageUrl) return coverImageUrl;
   return bySlug[slug] ?? fallbacks[index % fallbacks.length]!;
 }

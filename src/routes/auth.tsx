@@ -4,7 +4,11 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Icon } from "@/components/Icon";
 import { buttonClass, fieldClass, labelClass } from "@/components/admin/AdminShell";
-import { createVerificationAttempt, checkVerificationStatus, checkPasswordResetEligibility } from "@/lib/auth.functions";
+import {
+  createVerificationAttempt,
+  checkVerificationStatus,
+  checkPasswordResetEligibility,
+} from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -12,10 +16,14 @@ export const Route = createFileRoute("/auth")({
       { title: "Studio Sign In — Styling Space" },
       {
         name: "description",
-        content: "Sign in to the Styling Space studio CMS to manage portfolio, content and client consultations.",
+        content:
+          "Sign in to the Styling Space studio CMS to manage portfolio, content and client consultations.",
       },
       { property: "og:title", content: "Studio Sign In — Styling Space" },
-      { property: "og:description", content: "Private access to the Styling Space studio content management system." },
+      {
+        property: "og:description",
+        content: "Private access to the Styling Space studio content management system.",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -32,7 +40,7 @@ function AuthPage() {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const isRecoveryFlow = useRef(
-    typeof window !== "undefined" && window.location.hash.includes("type=recovery")
+    typeof window !== "undefined" && window.location.hash.includes("type=recovery"),
   );
   const opaqueToken = useRef<string | null>(null);
 
@@ -46,14 +54,16 @@ function AuthPage() {
       isChecking = true;
       try {
         const result = await checkVerificationStatus({ data: { token: opaqueToken.current! } });
-        
+
         if (result.confirmed) {
           clearInterval(interval);
           opaqueToken.current = null;
-          
+
           // Attempt to refresh session in case it's recoverable (e.g. same-device edge cases)
-          const { data: { session } } = await supabase.auth.refreshSession();
-          
+          const {
+            data: { session },
+          } = await supabase.auth.refreshSession();
+
           if (!session) {
             // No safe laptop session. Switch to sign in. Email is already pre-filled.
             toast.success("Email confirmed.");
@@ -77,7 +87,9 @@ function AuthPage() {
   }, [mode]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         isRecoveryFlow.current = true;
         setMode("reset");
@@ -86,18 +98,24 @@ function AuthPage() {
         const redirectPath = params.get("redirect");
 
         // Sync profile for Google OAuth users to ensure the profile exists
-        if (session.user.app_metadata?.provider === "google" || session.user.app_metadata?.providers?.includes("google")) {
+        if (
+          session.user.app_metadata?.provider === "google" ||
+          session.user.app_metadata?.providers?.includes("google")
+        ) {
           const meta = session.user.user_metadata;
           if (meta) {
-            supabase.from("profiles").upsert({
-              id: session.user.id,
-              email: session.user.email,
-              full_name: meta.full_name,
-              avatar_url: meta.avatar_url,
-              updated_at: new Date().toISOString()
-            }).then(({ error }) => {
-              if (error) console.error("Profile sync error:", error);
-            });
+            supabase
+              .from("profiles")
+              .upsert({
+                id: session.user.id,
+                email: session.user.email,
+                full_name: meta.full_name,
+                avatar_url: meta.avatar_url,
+                updated_at: new Date().toISOString(),
+              })
+              .then(({ error }) => {
+                if (error) console.error("Profile sync error:", error);
+              });
           }
         }
 
@@ -105,17 +123,23 @@ function AuthPage() {
           navigate({ to: redirectPath, replace: true });
         } else {
           // Handle post-login redirect based on role
-          supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }).then((adminRes) => {
-            supabase.rpc("has_role", { _user_id: session.user.id, _role: "owner" }).then((ownerRes) => {
-              supabase.rpc("has_role", { _user_id: session.user.id, _role: "editor" }).then((editorRes) => {
-                if (adminRes.data || ownerRes.data || editorRes.data) {
-                  navigate({ to: "/admin", replace: true });
-                } else {
-                  navigate({ to: "/", replace: true });
-                }
-              });
+          supabase
+            .rpc("has_role", { _user_id: session.user.id, _role: "admin" })
+            .then((adminRes) => {
+              supabase
+                .rpc("has_role", { _user_id: session.user.id, _role: "owner" })
+                .then((ownerRes) => {
+                  supabase
+                    .rpc("has_role", { _user_id: session.user.id, _role: "editor" })
+                    .then((editorRes) => {
+                      if (adminRes.data || ownerRes.data || editorRes.data) {
+                        navigate({ to: "/admin", replace: true });
+                      } else {
+                        navigate({ to: "/", replace: true });
+                      }
+                    });
+                });
             });
-          });
         }
       }
     });
@@ -130,11 +154,17 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else if (mode === "signup") {
+        if (password !== confirmPassword) {
+          toast.error("Passwords do not match.");
+          return;
+        }
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin + (new URLSearchParams(window.location.search).get("redirect") || "/"),
+            emailRedirectTo:
+              window.location.origin +
+              (new URLSearchParams(window.location.search).get("redirect") || "/"),
             data: { full_name: fullName },
           },
         });
@@ -170,20 +200,22 @@ function AuthPage() {
           toast.error("Passwords do not match.");
           return;
         }
-        
+
         setIsUpdatingPassword(true);
         const { error } = await supabase.auth.updateUser({ password });
         setIsUpdatingPassword(false);
-        
+
         if (error) throw error;
-        
+
         toast.success("Password updated successfully.");
-        
+
         setPassword("");
         setConfirmPassword("");
         isRecoveryFlow.current = false;
-        
-        const { data: { session } } = await supabase.auth.getSession();
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (session) {
           const params = new URLSearchParams(window.location.search);
           const redirectPath = params.get("redirect");
@@ -193,7 +225,7 @@ function AuthPage() {
             const [adminRes, ownerRes, editorRes] = await Promise.all([
               supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }),
               supabase.rpc("has_role", { _user_id: session.user.id, _role: "owner" }),
-              supabase.rpc("has_role", { _user_id: session.user.id, _role: "editor" })
+              supabase.rpc("has_role", { _user_id: session.user.id, _role: "editor" }),
             ]);
             if (adminRes.data || ownerRes.data || editorRes.data) {
               navigate({ to: "/admin", replace: true });
@@ -219,8 +251,10 @@ function AuthPage() {
         type: "signup",
         email,
         options: {
-          emailRedirectTo: window.location.origin + (new URLSearchParams(window.location.search).get("redirect") || "/"),
-        }
+          emailRedirectTo:
+            window.location.origin +
+            (new URLSearchParams(window.location.search).get("redirect") || "/"),
+        },
       });
       if (error) throw error;
       toast.success("Verification email resent. Please check your inbox.");
@@ -236,7 +270,7 @@ function AuthPage() {
       provider: "google",
       options: {
         redirectTo: window.location.origin + "/auth" + (window.location.search || ""),
-      }
+      },
     });
     if (error) toast.error(error.message);
   }
@@ -244,7 +278,10 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-margin-mobile py-16">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-6 inline-flex items-center gap-2 font-body-md text-[14px] text-on-surface-variant transition-colors hover:text-primary">
+        <Link
+          to="/"
+          className="mb-6 inline-flex items-center gap-2 font-body-md text-[14px] text-on-surface-variant transition-colors hover:text-primary"
+        >
           <Icon name="arrow_back" className="text-[18px]" />
           Back to Homepage
         </Link>
@@ -257,17 +294,20 @@ function AuthPage() {
 
         {mode === "verify" ? (
           <div className="mt-10 flex flex-col gap-5 text-center border border-outline-variant/50 p-8">
-            <h2 className="font-headline-sm text-primary uppercase tracking-widest">Verify Your Email</h2>
+            <h2 className="font-headline-sm text-primary uppercase tracking-widest">
+              Verify Your Email
+            </h2>
             <p className="text-on-surface-variant font-body-md">
-              We've sent a confirmation link to <span className="font-medium text-on-surface">{email}</span>
+              We've sent a confirmation link to{" "}
+              <span className="font-medium text-on-surface">{email}</span>
             </p>
             <p className="text-on-surface-variant font-body-md">
               Please check your inbox and click the confirmation link to activate your account.
             </p>
-            <button 
-              type="button" 
-              onClick={resendVerification} 
-              disabled={busy} 
+            <button
+              type="button"
+              onClick={resendVerification}
+              disabled={busy}
               className={`${buttonClass} mt-4 bg-transparent border border-outline-variant text-on-surface hover:bg-surface-container`}
             >
               Resend Email
@@ -276,70 +316,78 @@ function AuthPage() {
         ) : (
           <form onSubmit={onSubmit} className="mt-10 flex flex-col gap-5">
             {mode === "signup" && (
-            <div>
-              <label className={labelClass} htmlFor="fullName">
-                Full name
-              </label>
-              <input
-                id="fullName"
-                className={`${fieldClass} mt-2`}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                maxLength={160}
-              />
-            </div>
-          )}
-          {mode !== "reset" && (
-            <div>
-              <label className={labelClass} htmlFor="email">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                className={`${fieldClass} mt-2`}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                maxLength={200}
-              />
-            </div>
-          )}
-          {mode !== "forgot" && (
-            <div>
-              <label className={labelClass} htmlFor="password">
-                {mode === "reset" ? "New Password" : "Password"}
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                className={`${fieldClass} mt-2`}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          )}
-          {mode === "reset" && (
-            <div>
-              <label className={labelClass} htmlFor="confirmPassword">
-                Confirm New Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                required
-                minLength={6}
-                className={`${fieldClass} mt-2`}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
-          )}
+              <div>
+                <label className={labelClass} htmlFor="fullName">
+                  Full name
+                </label>
+                <input
+                  id="fullName"
+                  className={`${fieldClass} mt-2`}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  maxLength={160}
+                />
+              </div>
+            )}
+            {mode !== "reset" && (
+              <div>
+                <label className={labelClass} htmlFor="email">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  className={`${fieldClass} mt-2`}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  maxLength={200}
+                />
+              </div>
+            )}
+            {mode !== "forgot" && (
+              <div>
+                <label className={labelClass} htmlFor="password">
+                  {mode === "reset" ? "New Password" : "Password"}
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  minLength={6}
+                  className={`${fieldClass} mt-2`}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            )}
+            {(mode === "reset" || mode === "signup") && (
+              <div>
+                <label className={labelClass} htmlFor="confirmPassword">
+                  {mode === "reset" ? "Confirm New Password" : "Confirm Password"}
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  required
+                  minLength={6}
+                  className={`${fieldClass} mt-2`}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+            )}
 
             <button type="submit" disabled={busy || isUpdatingPassword} className={buttonClass}>
-              {isUpdatingPassword ? "Updating..." : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}
+              {isUpdatingPassword
+                ? "Updating..."
+                : mode === "signin"
+                  ? "Sign in"
+                  : mode === "signup"
+                    ? "Create account"
+                    : mode === "forgot"
+                      ? "Send reset link"
+                      : "Update password"}
             </button>
           </form>
         )}

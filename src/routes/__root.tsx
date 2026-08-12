@@ -91,6 +91,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
+    scripts: [
+      {
+        src: `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ""}&libraries=places`,
+        async: true,
+        defer: true,
+      },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
