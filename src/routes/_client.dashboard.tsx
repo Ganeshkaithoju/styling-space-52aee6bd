@@ -383,6 +383,14 @@ function DashboardPage() {
   );
 }
 
+type ConsultationLocationPayload = {
+  consultationId: string;
+  property_lat: number;
+  property_lng: number;
+  property_place_id: string;
+  property_formatted_address: string;
+};
+
 function LocationEditor({
   consultationId,
   initialAddress,
@@ -396,7 +404,7 @@ function LocationEditor({
   const qc = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: async (payload: unknown) => {
+    mutationFn: async (payload: ConsultationLocationPayload) => {
       await updateConsultationLocation({ data: payload });
     },
     onSuccess: () => {
@@ -421,13 +429,20 @@ function LocationEditor({
       if (!place.geometry?.location) return;
 
       const formatted = place.formatted_address || "";
+      const placeId = place.place_id;
+
+      if (!placeId) {
+        toast.error("Google did not return a valid Place ID for this location.");
+        return;
+      }
+
       setAddress(formatted);
 
       mutation.mutate({
         consultationId,
         property_lat: place.geometry.location.lat(),
         property_lng: place.geometry.location.lng(),
-        property_place_id: place.place_id,
+        property_place_id: placeId,
         property_formatted_address: formatted,
       });
     });

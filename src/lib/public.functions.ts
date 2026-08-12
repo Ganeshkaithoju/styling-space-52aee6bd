@@ -211,8 +211,10 @@ export const updateCustomerLocation = createServerFn({ method: "POST" })
 
 export const updateConsultationLocation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) =>
-    z
+  .validator((input: unknown) => {
+    console.log("updateConsultationLocation validator input:", input);
+
+    return z
       .object({
         consultationId: z.string().uuid(),
         property_lat: z.number(),
@@ -220,8 +222,8 @@ export const updateConsultationLocation = createServerFn({ method: "POST" })
         property_place_id: z.string(),
         property_formatted_address: z.string(),
       })
-      .parse(input),
-  )
+      .parse(input);
+  })
   .handler(async ({ data, context }) => {
     // 1. Verify ownership
     const { data: consultation, error: fetchErr } = await context.supabase
@@ -234,7 +236,7 @@ export const updateConsultationLocation = createServerFn({ method: "POST" })
       throw new Error("Consultation not found or unauthorized.");
     }
 
-    // 2. Update
+    // 2. Update location
     const updates = {
       property_lat: data.property_lat,
       property_lng: data.property_lng,
@@ -250,8 +252,11 @@ export const updateConsultationLocation = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     // 3. Audit Log
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import(
+      "@/integrations/supabase/client.server"
+    );
     const { createAuditLog } = await import("./services/audit.service");
+
     await createAuditLog(supabaseAdmin, context.userId, {
       action: "CONSULTATION_LOCATION_UPDATED",
       entityType: "consultation",
@@ -262,3 +267,4 @@ export const updateConsultationLocation = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+  

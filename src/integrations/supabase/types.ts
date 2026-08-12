@@ -24,10 +24,15 @@ export type Database = {
           project_scope: string | null;
           project_type: string | null;
           property_address: string | null;
+          property_formatted_address: string | null;
+          property_lat: number | null;
+          property_lng: number | null;
+          property_place_id: string | null;
           service_interest: string | null;
           status: string;
           timeline: string | null;
           updated_at: string;
+          user_id: string;
         };
         Insert: {
           assigned_designer?: string | null;
@@ -44,10 +49,15 @@ export type Database = {
           project_scope?: string | null;
           project_type?: string | null;
           property_address?: string | null;
+          property_formatted_address?: string | null;
+          property_lat?: number | null;
+          property_lng?: number | null;
+          property_place_id?: string | null;
           service_interest?: string | null;
           status?: string;
           timeline?: string | null;
           updated_at?: string;
+          user_id?: string;
         };
         Update: {
           assigned_designer?: string | null;
@@ -64,10 +74,15 @@ export type Database = {
           project_scope?: string | null;
           project_type?: string | null;
           property_address?: string | null;
+          property_formatted_address?: string | null;
+          property_lat?: number | null;
+          property_lng?: number | null;
+          property_place_id?: string | null;
           service_interest?: string | null;
           status?: string;
           timeline?: string | null;
           updated_at?: string;
+          user_id?: string;
         };
         Relationships: [];
       };
