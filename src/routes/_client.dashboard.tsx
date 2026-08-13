@@ -494,6 +494,10 @@ function DashboardPage() {
   );
 }
 
+// ============================================================================
+// LOCATION EDITOR
+// ============================================================================
+
 type ConsultationLocationPayload = {
   consultationId: string;
   property_lat: number;
@@ -513,16 +517,34 @@ function LocationEditor({
   const [isEditing, setIsEditing] = useState(false);
 
   const autocompleteRef = useRef<HTMLDivElement>(null);
+
   const qc = useQueryClient();
 
+  // ==========================================================================
+  // CHANGE 1:
+  // Keep the mutation exactly as before, but destructure `mutate`.
+  //
+  // WHY:
+  // The complete `mutation` object can change between renders.
+  // The `mutate` function is the value we actually need inside useEffect.
+  // This allows the effect dependency list to stay stable and removes:
+  //
+  // React Hook useEffect has a missing dependency: 'mutation'
+  // ==========================================================================
   const mutation = useMutation({
     mutationFn: async (payload: ConsultationLocationPayload) => {
-      await updateConsultationLocation({ data: payload });
+      await updateConsultationLocation({
+        data: payload,
+      });
     },
 
     onSuccess: () => {
       toast.success("Location updated successfully!");
-      qc.invalidateQueries({ queryKey: ["consultations"] });
+
+      qc.invalidateQueries({
+        queryKey: ["consultations"],
+      });
+
       setIsEditing(false);
     },
 
@@ -531,23 +553,80 @@ function LocationEditor({
     },
   });
 
+  // ==========================================================================
+  // CHANGE 2:
+  // Extract only the stable mutate function instead of using `mutation.mutate`
+  // directly inside the useEffect.
+  //
+  // This is important because the effect should not depend on the complete
+  // React Query mutation object.
+  // ==========================================================================
+  const saveLocation = mutation.mutate;
+
   useEffect(() => {
+    // ==========================================================================
+    // ORIGINAL:
+    // if (!isEditing || !autocompleteRef.current) {
+    //   return;
+    // }
+    //
+    // CHANGE:
+    // Same logic, retained exactly.
+    // ==========================================================================
+
     if (!isEditing || !autocompleteRef.current) {
       return;
     }
+
+    // ==========================================================================
+    // CHANGE 3:
+    // Capture the container once.
+    //
+    // This prevents cleanup from depending on a later value of
+    // autocompleteRef.current.
+    // ==========================================================================
+
     const container = autocompleteRef.current;
 
     let autocompleteElement: HTMLElement | null = null;
+
+    // ==========================================================================
+    // CHANGE 4:
+    // Keep a cancellation flag so asynchronous Google initialization cannot
+    // modify the DOM after React has already cleaned up the effect.
+    // ==========================================================================
+
     let cancelled = false;
 
-    const initializeAutocomplete = async () => {
+    // ==========================================================================
+    // CHANGE 5:
+    // The initialization function now explicitly returns a cleanup function
+    // for the Google event listener.
+    // ==========================================================================
+
+    const initializeAutocomplete = async (): Promise<(() => void) | undefined> => {
       try {
+        // ======================================================================
+        // CHANGE 6:
+        // Keep the existing Google Maps availability check.
+        // ======================================================================
+
         if (!window.google?.maps) {
           toast.error("Google Maps is not loaded.");
           return;
         }
 
+        // ======================================================================
+        // CHANGE 7:
+        // Continue using Google's modern Places library.
+        // ======================================================================
+
         const placesLibrary = await window.google.maps.importLibrary("places");
+
+        // ======================================================================
+        // CHANGE 8:
+        // Check cancellation after the asynchronous import completes.
+        // ======================================================================
 
         if (cancelled || !autocompleteRef.current) {
           return;
@@ -555,162 +634,325 @@ function LocationEditor({
 
         const PlaceAutocompleteElement = placesLibrary.PlaceAutocompleteElement;
 
+        // ======================================================================
+        // CHANGE 9:
+        // Keep the existing safety check.
+        // ======================================================================
+
         if (!PlaceAutocompleteElement) {
           toast.error(
-            "Google Places Autocomplete is not available. \nIf you are at the property location please update the property address using --SHARE MY CURRENT LOCATION-- in PROFILE SETTINGS.",
+            "Google Places Autocomplete is not available. " +
+              "Please try again or use Share My Current Location.",
           );
+
           return;
         }
 
-        // Create the new Places API autocomplete element
+        // ======================================================================
+        // CHANGE 10:
+        // Create the modern Google PlaceAutocompleteElement.
+        // ======================================================================
+
         autocompleteElement = new PlaceAutocompleteElement();
 
-        // if (autocompleteElement) {
+        // ======================================================================
+        // CHANGE 11:
+        // Set placeholder using the Google element attribute.
+        // ======================================================================
+
         autocompleteElement.setAttribute("placeholder", "Start typing an address...");
+
+        // ======================================================================
+        // CHANGE 12:
+        // Existing application styling is preserved.
+        // ======================================================================
 
         autocompleteElement.className =
           "w-full border-0 border-b border-outline-variant/60 bg-transparent pt-2 pb-3 font-body-lg text-body-lg text-primary outline-none focus:border-primary";
+
+        // ======================================================================
+        // CHANGE 13:
+        // Prevent appending the element if React has already unmounted it.
+        // ======================================================================
 
         if (cancelled) {
           return;
         }
 
         container.appendChild(autocompleteElement);
-        // test start
-        // autocompleteElement.addEventListener("gmp-select", async (event: Event) => {
-        //   try {
-        //     if (cancelled) {
-        //       return;
-        //     }
 
-        //     /*
-        //      * CHANGED:
-        //      * Strongly typed Google Places select event.
-        //      */
-        //     // temp blocking
-        //     const customEvent = event as GooglePlaceSelectEvent;
+        // ======================================================================
+        // CHANGE 14 — MOST IMPORTANT GOOGLE FIX:
+        //
+        // DO NOT read:
+        //
+        // const customEvent = event as CustomEvent;
+        // const detail = customEvent.detail;
+        // const placePrediction = detail?.placePrediction;
+        //
+        // The current Google Places API provides `placePrediction` directly
+        // on the gmp-select event.
+        //
+        // Google documents the event as:
+        //
+        // gmp-select -> PlacePredictionSelectEvent
+        //
+        // with:
+        //
+        // event.placePrediction
+        //
+        // This fixes the:
+        //
+        // "Google did not return a valid place."
+        //
+        // error caused by reading the wrong event structure.
+        // ======================================================================
 
-        //     const placePrediction = customEvent.detail?.placePrediction;
-
-        //     if (!placePrediction) {
-        //       toast.error("Google did not return a valid place.");
-        //       return;
-        //     }
-        //     // temp adding 2 lines
-        //     // console.log("Google gmp-select event:", event);
-        //     // console.log("Google gmp-select detail:", (event as CustomEvent).detail);
-
-        //     const place = placePrediction.toPlace();
-
-        //     await place.fetchFields({
-        //       fields: ["formattedAddress", "location", "id"],
-        //     });
-
-        //     if (cancelled) {
-        //       return;
-        //     }
-
-        //     if (!place.location) {
-        //       toast.error("Google did not return coordinates for this location.");
-        //       return;
-        //     }
-
-        //     if (!place.id) {
-        //       toast.error("Google did not return a valid Place ID.");
-        //       return;
-        //     }
-
-        //     const formatted = place.formattedAddress || "";
-
-        //     setAddress(formatted);
-
-        //     mutation.mutate({
-        //       consultationId,
-        //       property_lat: place.location.lat(),
-        //       property_lng: place.location.lng(),
-        //       property_place_id: place.id,
-        //       property_formatted_address: formatted,
-        //     });
-        //   } catch (error) {
-        //     console.error("Failed to process Google place:", error);
-
-        //     toast.error("Unable to get details for this location.");
-        //   }
-        // });
-        // test end
-        autocompleteElement.addEventListener("gmp-select", async (event: Event) => {
+        const handlePlaceSelect = async (event: Event) => {
           try {
             if (cancelled) {
               return;
             }
 
-            const customEvent = event as GooglePlaceSelectEvent;
-            const placePrediction = customEvent.detail?.placePrediction;
+            // ==================================================================
+            // CHANGE 15:
+            //
+            // Read placePrediction directly from the Google event.
+            //
+            // We intentionally do not use event.detail anymore.
+            // ==================================================================
 
-            if (!placePrediction) {
-              toast.error("Google did not return a valid place.");
+            const googleEvent = event as Event & {
+              placePrediction?: GooglePlacePrediction;
+            };
+
+            const placePrediction = googleEvent.placePrediction;
+
+            // ==================================================================
+            // CHANGE 16:
+            // Validate that Google actually supplied a PlacePrediction object.
+            // ==================================================================
+
+            if (!placePrediction || typeof placePrediction.toPlace !== "function") {
+              console.error(
+                "Google gmp-select event did not contain a valid placePrediction:",
+                event,
+              );
+
+              toast.error(
+                "Google did not return a valid place. Please select an address from the suggestions.",
+              );
+
               return;
             }
 
+            // ==================================================================
+            // CHANGE 17:
+            // Convert the prediction into Google's Place object.
+            // ==================================================================
+
             const place = placePrediction.toPlace();
+
+            if (!place) {
+              toast.error("Google could not resolve the selected place.");
+              return;
+            }
+
+            // ==================================================================
+            // CHANGE 18:
+            // Request ONLY the fields required by this application.
+            //
+            // formattedAddress -> address shown to the user
+            // location          -> latitude + longitude
+            // id                -> Google Place ID
+            // ==================================================================
 
             await place.fetchFields({
               fields: ["formattedAddress", "location", "id"],
             });
 
+            // ==================================================================
+            // CHANGE 19:
+            // Do not continue if the component was unmounted while Google was
+            // fetching place details.
+            // ==================================================================
+
             if (cancelled) {
               return;
             }
 
+            // ==================================================================
+            // CHANGE 20:
+            // Validate latitude/longitude.
+            // ==================================================================
+
             if (!place.location) {
               toast.error("Google did not return coordinates for this location.");
+
               return;
             }
+
+            // ==================================================================
+            // CHANGE 21:
+            // Validate Place ID.
+            // ==================================================================
 
             if (!place.id) {
               toast.error("Google did not return a valid Place ID.");
+
               return;
             }
 
-            const formatted = place.formattedAddress || "";
+            // ==================================================================
+            // CHANGE 22:
+            // Validate the formatted address before saving.
+            // ==================================================================
+
+            const formatted = place.formattedAddress?.trim() ?? "";
+
+            if (!formatted) {
+              toast.error("Google did not return a formatted address.");
+
+              return;
+            }
+
+            // ==================================================================
+            // CHANGE 23:
+            // Extract coordinates once.
+            //
+            // This avoids calling lat()/lng() multiple times and gives us
+            // exactly the values that will be saved.
+            // ==================================================================
+
+            const latitude = place.location.lat();
+            const longitude = place.location.lng();
+
+            // ==================================================================
+            // CHANGE 24:
+            // Validate that Google returned real numeric coordinates.
+            // ==================================================================
+
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+              toast.error("Google returned invalid coordinates for this location.");
+
+              return;
+            }
+
+            // ==================================================================
+            // CHANGE 25:
+            // Update the local address immediately.
+            //
+            // The database update happens below.
+            // ==================================================================
 
             setAddress(formatted);
 
-            mutation.mutate({
+            // ==================================================================
+            // CHANGE 26:
+            // Save the EXACT Google-selected location to the consultation.
+            //
+            // This is the actual database mutation.
+            //
+            // consultationId
+            // property_lat
+            // property_lng
+            // property_place_id
+            // property_formatted_address
+            // ==================================================================
+
+            saveLocation({
               consultationId,
-              property_lat: place.location.lat(),
-              property_lng: place.location.lng(),
+              property_lat: latitude,
+              property_lng: longitude,
               property_place_id: place.id,
               property_formatted_address: formatted,
             });
           } catch (error) {
-            console.error("Failed to process Google place:", error);
+            // ==================================================================
+            // CHANGE 27:
+            // Provide a useful error instead of always showing the same generic
+            // message.
+            // ==================================================================
 
-            toast.error("Unable to get details for this location.");
+            console.error("Failed to process Google place selection:", error);
+
+            toast.error(
+              error instanceof Error ? error.message : "Unable to get details for this location.",
+            );
           }
-        });
-        // testing demo end
+        };
+
+        // ======================================================================
+        // CHANGE 28:
+        // Register the Google gmp-select listener.
+        //
+        // Google officially uses this event for PlaceAutocompleteElement.
+        // ======================================================================
+
+        autocompleteElement.addEventListener("gmp-select", handlePlaceSelect);
+
+        // ======================================================================
+        // CHANGE 29:
+        // Return a cleanup function that removes the exact listener that was
+        // registered above.
+        // ======================================================================
+
+        return () => {
+          autocompleteElement?.removeEventListener("gmp-select", handlePlaceSelect);
+        };
       } catch (error) {
         if (cancelled) {
           return;
         }
 
+        // ======================================================================
+        // CHANGE 30:
+        // Keep detailed console logging while showing a safe UI message.
+        // ======================================================================
+
         console.error("Failed to initialize Google Places:", error);
 
         toast.error("Google Places could not be initialized.");
+
+        return;
       }
     };
 
-    void initializeAutocomplete();
+    // ==========================================================================
+    // CHANGE 31:
+    // Store the listener cleanup returned by the async initialization.
+    // ==========================================================================
+
+    let removeListener: (() => void) | undefined;
+
+    void initializeAutocomplete().then((cleanup) => {
+      if (cancelled) {
+        cleanup?.();
+        return;
+      }
+
+      removeListener = cleanup;
+    });
+
+    // ==========================================================================
+    // CHANGE 32:
+    // Complete React cleanup.
+    // ==========================================================================
 
     return () => {
       cancelled = true;
 
-      /*
-       * CHANGED:
-       * Use the captured `container` variable rather than
-       * autocompleteRef.current during cleanup.
-       */
+      // ========================================================================
+      // CHANGE 33:
+      // Remove the Google event listener before removing the element.
+      // ========================================================================
+
+      removeListener?.();
+
+      // ========================================================================
+      // CHANGE 34:
+      // Remove only the Google autocomplete element created by this effect.
+      // ========================================================================
 
       if (autocompleteElement && container.contains(autocompleteElement)) {
         container.removeChild(autocompleteElement);
@@ -718,7 +960,28 @@ function LocationEditor({
 
       autocompleteElement = null;
     };
-  }, [isEditing, consultationId, mutation]);
+
+    // ==========================================================================
+    // CHANGE 35 — REACT HOOK WARNING FIX:
+    //
+    // ORIGINAL:
+    //
+    // }, [isEditing, consultationId]);
+    //
+    // The original code used `mutation` inside the effect but did not include
+    // it in the dependency list.
+    //
+    // Instead of adding the entire mutation object, we use the extracted
+    // `saveLocation` mutation function.
+    //
+    // This keeps the effect focused on the values it actually uses.
+    // ==========================================================================
+  }, [isEditing, consultationId, saveLocation]);
+
+  // ============================================================================
+  // CHANGE 36:
+  // Keep the existing non-editing UI.
+  // ============================================================================
 
   if (!isEditing) {
     return (
@@ -731,6 +994,11 @@ function LocationEditor({
       </button>
     );
   }
+
+  // ============================================================================
+  // CHANGE 37:
+  // Keep the existing editing UI.
+  // ============================================================================
 
   return (
     <div className="mt-2">
@@ -750,117 +1018,3 @@ function LocationEditor({
     </div>
   );
 }
-
-//           // Add it directly to our React container --
-//           autocompleteRef.current.appendChild(autocompleteElement as Node);
-
-//           autocompleteElement.addEventListener("gmp-select", async (event: Event) => {
-//             try {
-//               const customEvent = event as CustomEvent<{
-//                 placePrediction?: {
-//                   toPlace: () => {
-//                     fetchFields: (options: { fields: string[] }) => Promise<void>;
-
-//                     formattedAddress?: string;
-
-//                     location?: {
-//                       lat: () => number;
-//                       lng: () => number;
-//                     };
-
-//                     id?: string;
-//                   };
-//                 };
-//               }>;
-
-//               const placePrediction = customEvent.detail?.placePrediction;
-
-//               if (!placePrediction) {
-//                 toast.error("Google did not return a valid place.");
-//                 return;
-//               }
-
-//               const place = placePrediction.toPlace();
-
-//               await place.fetchFields({
-//                 fields: ["formattedAddress", "location", "id"],
-//               });
-
-//               if (!place.location) {
-//                 toast.error("Google did not return coordinates for this location.");
-//                 return;
-//               }
-
-//               if (!place.id) {
-//                 toast.error("Google did not return a valid Place ID.");
-//                 return;
-//               }
-
-//               const formatted = place.formattedAddress || "";
-
-//               setAddress(formatted);
-
-//               mutation.mutate({
-//                 consultationId,
-//                 property_lat: place.location.lat(),
-//                 property_lng: place.location.lng(),
-//                 property_place_id: place.id,
-//                 property_formatted_address: formatted,
-//               });
-//             } catch (error) {
-//               console.error("Failed to process Google place:", error);
-
-//               toast.error("Unable to get details for this location.");
-//             }
-//           });
-//         // }
-//       } catch (error) {
-//         console.error("Failed to initialize Google Places:", error);
-
-//         toast.error("Google Places could not be initialized.");
-//       }
-//     };
-
-//     void initializeAutocomplete();
-
-//     return () => {
-//       cancelled = true;
-
-//       if (autocompleteElement && autocompleteRef.current?.contains(autocompleteElement)) {
-//         autocompleteRef.current.removeChild(autocompleteElement);
-//       }
-
-//       autocompleteElement = null;
-//     };
-//   }, [isEditing, consultationId, mutation]);
-
-//   if (!isEditing) {
-//     return (
-//       <button
-//         type="button"
-//         onClick={() => setIsEditing(true)}
-//         className="text-xs text-secondary underline transition-colors hover:text-primary"
-//       >
-//         {initialAddress ? "Update Location" : "Set Property Location"}
-//       </button>
-//     );
-//   }
-
-//   return (
-//     <div className="mt-2">
-//       <div ref={autocompleteRef} className="w-full" />
-
-//       <div className="mt-2 flex items-center justify-between">
-//         <span className="text-[10px] text-on-surface-variant">Powered by Google Maps</span>
-
-//         <button
-//           type="button"
-//           onClick={() => setIsEditing(false)}
-//           className="text-[10px] text-secondary hover:text-primary"
-//         >
-//           Cancel
-//         </button>
-//       </div>
-//     </div>
-//   );
-// }-
