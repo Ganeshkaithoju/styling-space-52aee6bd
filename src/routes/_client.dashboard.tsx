@@ -587,15 +587,18 @@ function LocationEditor({
              * CHANGED:
              * Strongly typed Google Places select event.
              */
+            // temp blocking
+            // const customEvent = event as GooglePlaceSelectEvent;
 
-            const customEvent = event as GooglePlaceSelectEvent;
+            // const placePrediction = customEvent.detail?.placePrediction;
 
-            const placePrediction = customEvent.detail?.placePrediction;
-
-            if (!placePrediction) {
-              toast.error("Google did not return a valid place.");
-              return;
-            }
+            // if (!placePrediction) {
+            //   toast.error("Google did not return a valid place.");
+            //   return;
+            // }
+            // temp adding 2 lines
+            console.log("Google gmp-select event:", event);
+            console.log("Google gmp-select detail:", (event as CustomEvent).detail);
 
             const place = placePrediction.toPlace();
 
