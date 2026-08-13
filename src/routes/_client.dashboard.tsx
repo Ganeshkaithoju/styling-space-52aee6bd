@@ -106,7 +106,7 @@ function DashboardPage() {
       longitude: number;
       accuracy: number | null;
     }) => {
-      await updateCustomerLocation(coords);
+      await updateCustomerLocation({ data: coords });
     },
     onSuccess: () => {
       toast.success("Location updated successfully.");

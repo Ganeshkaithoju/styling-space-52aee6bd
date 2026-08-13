@@ -252,9 +252,7 @@ export const updateConsultationLocation = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     // 3. Audit Log
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
-    );
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { createAuditLog } = await import("./services/audit.service");
 
     await createAuditLog(supabaseAdmin, context.userId, {
@@ -267,4 +265,3 @@ export const updateConsultationLocation = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
-  
