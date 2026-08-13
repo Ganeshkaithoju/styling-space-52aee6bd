@@ -83,7 +83,9 @@ export const submitConsultation = createServerFn({ method: "POST" })
       .limit(1);
 
     if (existing && existing.length > 0) {
-      throw new Error("You already have an active consultation. Please check your dashboard.");
+      throw new Error(
+        "You already have an active consultation. Please edit or delete your existing consultation before creating another one.",
+      );
     }
 
     // 2. Extract profile details to ensure we use the authenticated user's true data
@@ -261,6 +263,103 @@ export const updateConsultationLocation = createServerFn({ method: "POST" })
       entityId: data.consultationId,
       description: "User updated property location",
       newData: updates,
+    });
+
+    return { ok: true };
+  });
+
+export const updateConsultation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        consultationId: z.string().uuid(),
+        service_interest: z.string().trim().max(120),
+        project_type: z.string().trim().max(120),
+        project_scope: z.string().trim().max(120),
+        timeline: z.string().trim().max(120),
+        budget_range: z.string().trim().max(120).nullable().default(null),
+        location: z.string().trim().max(200).nullable().default(null),
+        property_address: z.string().trim().max(300).nullable().default(null),
+        preferred_date: z.string().trim().max(40).nullable().default(null),
+        preferred_time: z.string().trim().max(60),
+        message: z.string().trim().max(4000).nullable().default(null),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { consultationId, ...updates } = data;
+
+    // 1. Verify ownership
+    const { data: existing, error: fetchErr } = await context.supabase
+      .from("consultations")
+      .select("id, user_id")
+      .eq("id", consultationId)
+      .eq("user_id", context.userId)
+      .single();
+
+    if (fetchErr || !existing) {
+      throw new Error("Consultation not found or unauthorized.");
+    }
+
+    // 2. Update allowed fields
+    const { error } = await context.supabase
+      .from("consultations")
+      .update(updates)
+      .eq("id", consultationId)
+      .eq("user_id", context.userId);
+
+    if (error) throw new Error(error.message);
+
+    // 3. Audit Log
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "CONSULTATION_UPDATED",
+      entityType: "consultation",
+      entityId: consultationId,
+      description: "User updated consultation details",
+      newData: updates,
+    });
+
+    return { ok: true };
+  });
+
+export const deleteConsultation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ consultationId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    // 1. Verify ownership
+    const { data: existing, error: fetchErr } = await context.supabase
+      .from("consultations")
+      .select("id, user_id")
+      .eq("id", data.consultationId)
+      .eq("user_id", context.userId)
+      .single();
+
+    if (fetchErr || !existing) {
+      throw new Error("Consultation not found or unauthorized.");
+    }
+
+    // 2. Delete consultation
+    const { error } = await context.supabase
+      .from("consultations")
+      .delete()
+      .eq("id", data.consultationId)
+      .eq("user_id", context.userId);
+
+    if (error) throw new Error(error.message);
+
+    // 3. Audit Log
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAuditLog } = await import("./services/audit.service");
+
+    await createAuditLog(supabaseAdmin, context.userId, {
+      action: "CONSULTATION_DELETED",
+      entityType: "consultation",
+      entityId: data.consultationId,
+      description: "User deleted consultation",
     });
 
     return { ok: true };

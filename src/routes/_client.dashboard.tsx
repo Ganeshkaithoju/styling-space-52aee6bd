@@ -9,35 +9,48 @@ import {
   updateConsultationLocation,
   getCustomerLocation,
   updateCustomerLocation,
+  deleteConsultation,
+  updateConsultation,
 } from "@/lib/public.functions";
+import { siteDataQuery } from "@/lib/site-queries";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { ConsultationForm } from "@/components/consultation/ConsultationForm";
+
+type GooglePlaceLocation = {
+  lat: () => number;
+  lng: () => number;
+};
+
+type GooglePlace = {
+  fetchFields: (options: { fields: string[] }) => Promise<void>;
+  formattedAddress?: string;
+  location?: GooglePlaceLocation;
+  id?: string;
+};
+
+type GooglePlacePrediction = {
+  toPlace: () => GooglePlace;
+};
+
+type GooglePlaceSelectEvent = CustomEvent<{
+  placePrediction?: GooglePlacePrediction;
+}>;
+
+type GooglePlacesLibrary = {
+  PlaceAutocompleteElement: new () => HTMLElement;
+};
+
+type GoogleMaps = {
+  importLibrary: (library: "places") => Promise<GooglePlacesLibrary>;
+};
+
+type GoogleWindow = {
+  maps?: GoogleMaps;
+};
 
 declare global {
   interface Window {
-    google?: {
-      maps?: {
-        places?: {
-          Autocomplete: {
-            new (
-              input: HTMLInputElement,
-              options?: { fields: string[] },
-            ): {
-              addListener: (eventName: string, handler: () => void) => void;
-              getPlace: () => {
-                geometry?: {
-                  location?: {
-                    lat: () => number;
-                    lng: () => number;
-                  };
-                };
-                formatted_address?: string;
-                place_id?: string;
-              };
-            };
-          };
-        };
-      };
-    };
+    google?: GoogleWindow;
   }
 }
 
@@ -45,7 +58,7 @@ export const Route = createFileRoute("/_client/dashboard")({
   component: DashboardPage,
   validateSearch: (search: Record<string, unknown>) => {
     return {
-      tab: (search.tab as string) || "consultations",
+      tab: (search["tab"] as string) || "consultations",
     };
   },
 });
@@ -86,6 +99,53 @@ function DashboardPage() {
         .order("created_at", { ascending: false });
       return data ?? [];
     },
+  });
+
+  const { data: siteData } = useSuspenseQuery(siteDataQuery);
+  const [editingConsultationId, setEditingConsultationId] = useState<string | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await deleteConsultation({ data: { consultationId: id } });
+    },
+    onSuccess: () => {
+      toast.success("Consultation deleted successfully.");
+      qc.invalidateQueries({ queryKey: ["consultations", userAuth.id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // const updateMutation = useMutation({
+  //   mutationFn: async (data: any) => {
+  //     await updateConsultation({ data });
+  //   },
+  type ConsultationUpdateData = {
+    consultationId: string;
+    service_interest: string;
+    project_type: string;
+    project_scope: string;
+    timeline: string;
+    budget_range: string | null;
+    location: string | null;
+    property_address: string | null;
+    preferred_date: string | null;
+    preferred_time: string;
+    message: string | null;
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: ConsultationUpdateData) => {
+      await updateConsultation({
+        data,
+      });
+    },
+
+    onSuccess: () => {
+      toast.success("Consultation updated successfully.");
+      setEditingConsultationId(null);
+      qc.invalidateQueries({ queryKey: ["consultations", userAuth.id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const { data: myLocation, refetch: refetchLocation } = useSuspenseQuery({
@@ -194,51 +254,107 @@ function DashboardPage() {
                 </button>
               </div>
             ) : (
-              consultations.map((c) => (
-                <div
-                  key={c.id}
-                  className="border border-outline-variant/60 bg-surface-container-lowest p-8"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-headline-md text-[20px] text-primary">
-                        {c.service_interest}
-                      </h3>
-                      <p className="mt-1 font-body-md text-on-surface-variant">
-                        {c.project_type} · {c.project_scope}
-                      </p>
-                    </div>
-                    <span className="inline-block bg-surface-container px-3 py-1 font-label-caps text-xs uppercase tracking-widest text-primary">
-                      {c.status}
-                    </span>
-                  </div>
-                  <div className="mt-6 grid grid-cols-2 gap-6 border-t border-outline-variant/40 pt-6">
-                    <div>
-                      <p className="mb-1 font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
-                        Preferred Date
-                      </p>
-                      <p className="font-body-md text-primary">
-                        {c.preferred_date ? `${c.preferred_date} · ${c.preferred_time}` : "TBD"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="mb-1 font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
-                        Location
-                      </p>
-                      <p className="font-body-md text-primary">
-                        {c.property_formatted_address || c.location || "N/A"}
-                      </p>
+              consultations.map((c) => {
+                if (editingConsultationId === c.id) {
+                  return (
+                    <div
+                      key={c.id}
+                      className="border border-outline-variant/60 bg-surface-container-lowest p-8"
+                    >
+                      <ConsultationForm
+                        mode="edit"
+                        saving={updateMutation.isPending}
+                        services={siteData.services}
 
-                      <div className="mt-4">
-                        <LocationEditor
-                          consultationId={c.id}
-                          initialAddress={c.property_formatted_address || ""}
-                        />
+                        // initialData={c as any}
+                        initialData={{
+                          service_interest: c.service_interest ?? "",
+                          project_type: c.project_type ?? "",
+                          project_scope: c.project_scope ?? "",
+                          timeline: c.timeline ?? "",
+                          budget_range: c.budget_range ?? "",
+                          location: c.location ?? "",
+                          property_address: c.property_address ?? "",
+                          preferred_date: c.preferred_date ?? "",
+                          preferred_time: c.preferred_time ?? "",
+                          message: c.message ?? "",
+                        }}
+                        onSubmit={(data) =>
+                          updateMutation.mutate({ ...data, consultationId: c.id })
+                        }
+                        onCancel={() => setEditingConsultationId(null)}
+                      />
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={c.id}
+                    className="border border-outline-variant/60 bg-surface-container-lowest p-8"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-headline-md text-[20px] text-primary">
+                          {c.service_interest}
+                        </h3>
+                        <p className="mt-1 font-body-md text-on-surface-variant">
+                          {c.project_type} · {c.project_scope}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="inline-block bg-surface-container px-3 py-1 font-label-caps text-xs uppercase tracking-widest text-primary">
+                          {c.status}
+                        </span>
+                        <button
+                          onClick={() => setEditingConsultationId(c.id)}
+                          className="font-label-caps text-xs text-secondary hover:text-primary transition-colors uppercase tracking-widest"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (
+                              window.confirm("Are you sure you want to delete this consultation?")
+                            ) {
+                              deleteMutation.mutate(c.id);
+                            }
+                          }}
+                          className="font-label-caps text-xs text-error hover:text-error/80 transition-colors uppercase tracking-widest"
+                          disabled={deleteMutation.isPending}
+                        >
+                          {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-6 grid grid-cols-2 gap-6 border-t border-outline-variant/40 pt-6">
+                      <div>
+                        <p className="mb-1 font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
+                          Preferred Date
+                        </p>
+                        <p className="font-body-md text-primary">
+                          {c.preferred_date ? `${c.preferred_date} · ${c.preferred_time}` : "TBD"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="mb-1 font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
+                          Location
+                        </p>
+                        <p className="font-body-md text-primary">
+                          {c.property_formatted_address || c.location || "N/A"}
+                        </p>
+
+                        <div className="mt-4">
+                          <LocationEditor
+                            consultationId={c.id}
+                            initialAddress={c.property_formatted_address || ""}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
@@ -296,11 +412,6 @@ function DashboardPage() {
                   Status:{" "}
                   <span className="font-semibold">{myLocation ? "Shared" : "Not shared"}</span>
                 </p>
-                {myLocation && (
-                  <p className="font-body-sm text-on-surface-variant mt-1">
-                    Last updated: {new Date(myLocation.updated_at).toLocaleString()}
-                  </p>
-                )}
               </div>
               <button
                 type="button"
@@ -400,60 +511,165 @@ function LocationEditor({
 }) {
   const [address, setAddress] = useState(initialAddress);
   const [isEditing, setIsEditing] = useState(false);
-  const actualInputRef = useRef<HTMLInputElement>(null);
+
+  const autocompleteRef = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: async (payload: ConsultationLocationPayload) => {
       await updateConsultationLocation({ data: payload });
     },
+
     onSuccess: () => {
       toast.success("Location updated successfully!");
       qc.invalidateQueries({ queryKey: ["consultations"] });
       setIsEditing(false);
     },
+
     onError: (err: Error) => {
       toast.error(err.message || "Failed to update location");
     },
   });
 
   useEffect(() => {
-    if (!isEditing || !actualInputRef.current || !window.google?.maps?.places) return;
+    if (!isEditing || !autocompleteRef.current) {
+      return;
+    }
+    const container = autocompleteRef.current;
 
-    const autocomplete = new window.google.maps.places.Autocomplete(actualInputRef.current, {
-      fields: ["formatted_address", "geometry", "place_id"],
-    });
+    let autocompleteElement: HTMLElement | null = null;
+    let cancelled = false;
 
-    autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
-      if (!place.geometry?.location) return;
+    const initializeAutocomplete = async () => {
+      try {
+        if (!window.google?.maps) {
+          toast.error("Google Maps is not loaded.");
+          return;
+        }
 
-      const formatted = place.formatted_address || "";
-      const placeId = place.place_id;
+        const placesLibrary = await window.google.maps.importLibrary("places");
 
-      if (!placeId) {
-        toast.error("Google did not return a valid Place ID for this location.");
-        return;
+        if (cancelled || !autocompleteRef.current) {
+          return;
+        }
+
+        const PlaceAutocompleteElement = placesLibrary.PlaceAutocompleteElement;
+
+        if (!PlaceAutocompleteElement) {
+          toast.error(
+            "Google Places Autocomplete is not available. \nIf you are at the property location please update the property address using --SHARE MY CURRENT LOCATION-- in PROFILE SETTINGS.",
+          );
+          return;
+        }
+
+        // Create the new Places API autocomplete element
+        autocompleteElement = new PlaceAutocompleteElement();
+
+        // if (autocompleteElement) {
+        autocompleteElement.setAttribute("placeholder", "Start typing an address...");
+
+        autocompleteElement.className =
+          "w-full border-0 border-b border-outline-variant/60 bg-transparent pt-2 pb-3 font-body-lg text-body-lg text-primary outline-none focus:border-primary";
+
+        if (cancelled) {
+          return;
+        }
+
+        container.appendChild(autocompleteElement);
+
+        autocompleteElement.addEventListener("gmp-select", async (event: Event) => {
+          try {
+            if (cancelled) {
+              return;
+            }
+
+            /*
+             * CHANGED:
+             * Strongly typed Google Places select event.
+             */
+
+            const customEvent = event as GooglePlaceSelectEvent;
+
+            const placePrediction = customEvent.detail?.placePrediction;
+
+            if (!placePrediction) {
+              toast.error("Google did not return a valid place.");
+              return;
+            }
+
+            const place = placePrediction.toPlace();
+
+            await place.fetchFields({
+              fields: ["formattedAddress", "location", "id"],
+            });
+
+            if (cancelled) {
+              return;
+            }
+
+            if (!place.location) {
+              toast.error("Google did not return coordinates for this location.");
+              return;
+            }
+
+            if (!place.id) {
+              toast.error("Google did not return a valid Place ID.");
+              return;
+            }
+
+            const formatted = place.formattedAddress || "";
+
+            setAddress(formatted);
+
+            mutation.mutate({
+              consultationId,
+              property_lat: place.location.lat(),
+              property_lng: place.location.lng(),
+              property_place_id: place.id,
+              property_formatted_address: formatted,
+            });
+          } catch (error) {
+            console.error("Failed to process Google place:", error);
+
+            toast.error("Unable to get details for this location.");
+          }
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Failed to initialize Google Places:", error);
+
+        toast.error("Google Places could not be initialized.");
+      }
+    };
+
+    void initializeAutocomplete();
+
+    return () => {
+      cancelled = true;
+
+      /*
+       * CHANGED:
+       * Use the captured `container` variable rather than
+       * autocompleteRef.current during cleanup.
+       */
+
+      if (autocompleteElement && container.contains(autocompleteElement)) {
+        container.removeChild(autocompleteElement);
       }
 
-      setAddress(formatted);
-
-      mutation.mutate({
-        consultationId,
-        property_lat: place.geometry.location.lat(),
-        property_lng: place.geometry.location.lng(),
-        property_place_id: placeId,
-        property_formatted_address: formatted,
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing]);
+      autocompleteElement = null;
+    };
+  }, [isEditing, consultationId, mutation]);
 
   if (!isEditing) {
     return (
       <button
+        type="button"
         onClick={() => setIsEditing(true)}
-        className="text-xs text-secondary underline hover:text-primary transition-colors"
+        className="text-xs text-secondary underline transition-colors hover:text-primary"
       >
         {initialAddress ? "Update Location" : "Set Property Location"}
       </button>
@@ -462,17 +678,13 @@ function LocationEditor({
 
   return (
     <div className="mt-2">
-      <input
-        ref={actualInputRef}
-        type="text"
-        placeholder="Start typing an address..."
-        className={`${fieldClass} text-sm`}
-        defaultValue={address}
-        disabled={mutation.isPending}
-      />
+      <div ref={autocompleteRef} className="w-full" />
+
       <div className="mt-2 flex items-center justify-between">
         <span className="text-[10px] text-on-surface-variant">Powered by Google Maps</span>
+
         <button
+          type="button"
           onClick={() => setIsEditing(false)}
           className="text-[10px] text-secondary hover:text-primary"
         >
@@ -482,3 +694,117 @@ function LocationEditor({
     </div>
   );
 }
+
+//           // Add it directly to our React container --
+//           autocompleteRef.current.appendChild(autocompleteElement as Node);
+
+//           autocompleteElement.addEventListener("gmp-select", async (event: Event) => {
+//             try {
+//               const customEvent = event as CustomEvent<{
+//                 placePrediction?: {
+//                   toPlace: () => {
+//                     fetchFields: (options: { fields: string[] }) => Promise<void>;
+
+//                     formattedAddress?: string;
+
+//                     location?: {
+//                       lat: () => number;
+//                       lng: () => number;
+//                     };
+
+//                     id?: string;
+//                   };
+//                 };
+//               }>;
+
+//               const placePrediction = customEvent.detail?.placePrediction;
+
+//               if (!placePrediction) {
+//                 toast.error("Google did not return a valid place.");
+//                 return;
+//               }
+
+//               const place = placePrediction.toPlace();
+
+//               await place.fetchFields({
+//                 fields: ["formattedAddress", "location", "id"],
+//               });
+
+//               if (!place.location) {
+//                 toast.error("Google did not return coordinates for this location.");
+//                 return;
+//               }
+
+//               if (!place.id) {
+//                 toast.error("Google did not return a valid Place ID.");
+//                 return;
+//               }
+
+//               const formatted = place.formattedAddress || "";
+
+//               setAddress(formatted);
+
+//               mutation.mutate({
+//                 consultationId,
+//                 property_lat: place.location.lat(),
+//                 property_lng: place.location.lng(),
+//                 property_place_id: place.id,
+//                 property_formatted_address: formatted,
+//               });
+//             } catch (error) {
+//               console.error("Failed to process Google place:", error);
+
+//               toast.error("Unable to get details for this location.");
+//             }
+//           });
+//         // }
+//       } catch (error) {
+//         console.error("Failed to initialize Google Places:", error);
+
+//         toast.error("Google Places could not be initialized.");
+//       }
+//     };
+
+//     void initializeAutocomplete();
+
+//     return () => {
+//       cancelled = true;
+
+//       if (autocompleteElement && autocompleteRef.current?.contains(autocompleteElement)) {
+//         autocompleteRef.current.removeChild(autocompleteElement);
+//       }
+
+//       autocompleteElement = null;
+//     };
+//   }, [isEditing, consultationId, mutation]);
+
+//   if (!isEditing) {
+//     return (
+//       <button
+//         type="button"
+//         onClick={() => setIsEditing(true)}
+//         className="text-xs text-secondary underline transition-colors hover:text-primary"
+//       >
+//         {initialAddress ? "Update Location" : "Set Property Location"}
+//       </button>
+//     );
+//   }
+
+//   return (
+//     <div className="mt-2">
+//       <div ref={autocompleteRef} className="w-full" />
+
+//       <div className="mt-2 flex items-center justify-between">
+//         <span className="text-[10px] text-on-surface-variant">Powered by Google Maps</span>
+
+//         <button
+//           type="button"
+//           onClick={() => setIsEditing(false)}
+//           className="text-[10px] text-secondary hover:text-primary"
+//         >
+//           Cancel
+//         </button>
+//       </div>
+//     </div>
+//   );
+// }-
