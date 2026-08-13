@@ -134,7 +134,8 @@ function ConsultationPage() {
                 your consultation.
               </p>
               <Link
-                to="/_client/dashboard"
+                to="/dashboard"
+                search={{ tab: "consultations" }}
                 className="mt-4 inline-block font-label-caps text-xs text-secondary underline hover:text-primary transition-colors"
               >
                 Go to Client Portal
