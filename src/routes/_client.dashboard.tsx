@@ -576,29 +576,81 @@ function LocationEditor({
         }
 
         container.appendChild(autocompleteElement);
+        // test start
+        // autocompleteElement.addEventListener("gmp-select", async (event: Event) => {
+        //   try {
+        //     if (cancelled) {
+        //       return;
+        //     }
 
+        //     /*
+        //      * CHANGED:
+        //      * Strongly typed Google Places select event.
+        //      */
+        //     // temp blocking
+        //     const customEvent = event as GooglePlaceSelectEvent;
+
+        //     const placePrediction = customEvent.detail?.placePrediction;
+
+        //     if (!placePrediction) {
+        //       toast.error("Google did not return a valid place.");
+        //       return;
+        //     }
+        //     // temp adding 2 lines
+        //     // console.log("Google gmp-select event:", event);
+        //     // console.log("Google gmp-select detail:", (event as CustomEvent).detail);
+
+        //     const place = placePrediction.toPlace();
+
+        //     await place.fetchFields({
+        //       fields: ["formattedAddress", "location", "id"],
+        //     });
+
+        //     if (cancelled) {
+        //       return;
+        //     }
+
+        //     if (!place.location) {
+        //       toast.error("Google did not return coordinates for this location.");
+        //       return;
+        //     }
+
+        //     if (!place.id) {
+        //       toast.error("Google did not return a valid Place ID.");
+        //       return;
+        //     }
+
+        //     const formatted = place.formattedAddress || "";
+
+        //     setAddress(formatted);
+
+        //     mutation.mutate({
+        //       consultationId,
+        //       property_lat: place.location.lat(),
+        //       property_lng: place.location.lng(),
+        //       property_place_id: place.id,
+        //       property_formatted_address: formatted,
+        //     });
+        //   } catch (error) {
+        //     console.error("Failed to process Google place:", error);
+
+        //     toast.error("Unable to get details for this location.");
+        //   }
+        // });
+        // test end
         autocompleteElement.addEventListener("gmp-select", async (event: Event) => {
           try {
             if (cancelled) {
               return;
             }
 
-            /*
-             * CHANGED:
-             * Strongly typed Google Places select event.
-             */
-            // temp blocking
-            // const customEvent = event as GooglePlaceSelectEvent;
+            const customEvent = event as GooglePlaceSelectEvent;
+            const placePrediction = customEvent.detail?.placePrediction;
 
-            // const placePrediction = customEvent.detail?.placePrediction;
-
-            // if (!placePrediction) {
-            //   toast.error("Google did not return a valid place.");
-            //   return;
-            // }
-            // temp adding 2 lines
-            console.log("Google gmp-select event:", event);
-            console.log("Google gmp-select detail:", (event as CustomEvent).detail);
+            if (!placePrediction) {
+              toast.error("Google did not return a valid place.");
+              return;
+            }
 
             const place = placePrediction.toPlace();
 
@@ -637,6 +689,7 @@ function LocationEditor({
             toast.error("Unable to get details for this location.");
           }
         });
+        // testing demo end
       } catch (error) {
         if (cancelled) {
           return;
