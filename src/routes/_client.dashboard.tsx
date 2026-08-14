@@ -21,11 +21,35 @@ type GooglePlaceLocation = {
   lng: () => number;
 };
 
+type GoogleAddressComponent = {
+  // CHANGED: Google Places returns the full component text through longText.
+  longText?: string;
+
+  // CHANGED: Google Places can also return the abbreviated component text.
+  shortText?: string;
+
+  // CHANGED: Google uses types to identify city, state, postal code, etc.
+  types: string[];
+};
+
 type GooglePlace = {
+  // CHANGED: Keep fetchFields because the selected prediction must be
+  // converted into a Place before its details are retrieved.
   fetchFields: (options: { fields: string[] }) => Promise<void>;
+
+  // CHANGED: Keep formattedAddress because this maps to customer_locations.address.
   formattedAddress?: string;
+
+  // CHANGED: Keep location because this maps to latitude/longitude.
   location?: GooglePlaceLocation;
+
+  // CHANGED: Keep id only if you still need it for logging/debugging.
+  // It is NOT saved to customer_locations because that table has no place_id column.
   id?: string;
+
+  // CHANGED: Add addressComponents so city, state and postal code can be
+  // extracted into the existing customer_locations columns.
+  addressComponents?: GoogleAddressComponent[];
 };
 
 type GooglePlacePrediction = {
@@ -343,13 +367,6 @@ function DashboardPage() {
                         <p className="font-body-md text-primary">
                           {c.property_formatted_address || c.location || "N/A"}
                         </p>
-
-                        <div className="mt-4">
-                          <LocationEditor
-                            consultationId={c.id}
-                            initialAddress={c.property_formatted_address || ""}
-                          />
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -412,19 +429,37 @@ function DashboardPage() {
                   Status:{" "}
                   <span className="font-semibold">{myLocation ? "Shared" : "Not shared"}</span>
                 </p>
+                {myLocation?.address && (
+                  <p className="mt-1 font-body-md text-on-surface-variant">
+                    <span className="font-semibold">Saved address:</span> {myLocation.address}
+                  </p>
+                )}
               </div>
-              <button
-                type="button"
-                className={`${buttonClass}`}
-                onClick={handleShareLocation}
-                disabled={locationMutation.isPending}
-              >
-                {locationMutation.isPending
-                  ? "Updating..."
-                  : myLocation
-                    ? "Update Location"
-                    : "Share My Current Location"}
-              </button>
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+                <div>
+                  <p className="mb-2 font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
+                    Use GPS
+                  </p>
+                  <button
+                    type="button"
+                    className={`${buttonClass}`}
+                    onClick={handleShareLocation}
+                    disabled={locationMutation.isPending}
+                  >
+                    {locationMutation.isPending
+                      ? "Updating..."
+                      : myLocation
+                        ? "Update GPS Location"
+                        : "Share My Current Location"}
+                  </button>
+                </div>
+                <div>
+                  <p className="mb-2 font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
+                    Search by Address
+                  </p>
+                  <LocationEditor initialAddress={myLocation?.address ?? ""} />
+                </div>
+              </div>
             </div>
 
             <div className="mt-12 border border-outline-variant/60 bg-surface-container-lowest p-8">
@@ -498,22 +533,39 @@ function DashboardPage() {
 // LOCATION EDITOR
 // ============================================================================
 
-type ConsultationLocationPayload = {
-  consultationId: string;
-  property_lat: number;
-  property_lng: number;
-  property_place_id: string;
-  property_formatted_address: string;
+// CHANGED: Rename this payload because it now represents a customer_locations record,
+// not a consultation location update.
+type CustomerLocationPayload = {
+  // CHANGED: latitude matches the customer_locations.latitude column.
+  latitude: number;
+
+  // CHANGED: longitude matches the customer_locations.longitude column.
+  longitude: number;
+
+  // CHANGED: accuracy matches the existing customer_locations.accuracy column.
+  accuracy: number | null;
+
+  // CHANGED: address matches the existing customer_locations.address column.
+  address: string;
+
+  // CHANGED: city matches the existing customer_locations.city column.
+  city: string | null;
+
+  // CHANGED: state matches the existing customer_locations.state column.
+  state: string | null;
+
+  // CHANGED: postal_code matches the existing customer_locations.postal_code column.
+  postal_code: string | null;
 };
 
 function LocationEditor({
-  consultationId,
+  // CHANGED: The editor only needs the existing customer address.
+  // It no longer needs a consultation ID.
   initialAddress,
 }: {
-  consultationId: string;
+  // CHANGED: initialAddress now comes from customer_locations.
   initialAddress: string;
 }) {
-  const [address, setAddress] = useState(initialAddress);
   const [isEditing, setIsEditing] = useState(false);
 
   const autocompleteRef = useRef<HTMLDivElement>(null);
@@ -532,23 +584,34 @@ function LocationEditor({
   // React Hook useEffect has a missing dependency: 'mutation'
   // ==========================================================================
   const mutation = useMutation({
-    mutationFn: async (payload: ConsultationLocationPayload) => {
-      await updateConsultationLocation({
+    // CHANGED: The mutation now sends a CustomerLocationPayload because
+    // Google location data must be saved into customer_locations.
+    mutationFn: async (payload: CustomerLocationPayload) => {
+      // CHANGED: Call updateCustomerLocation instead of updateConsultationLocation.
+      // The server function must derive the authenticated user ID from the session.
+      await updateCustomerLocation({
+        // CHANGED: Pass the customer_locations-compatible payload.
         data: payload,
       });
     },
 
     onSuccess: () => {
+      // CHANGED: Keep the existing success message because the user is still
+      // successfully updating their location.
       toast.success("Location updated successfully!");
 
+      // CHANGED: Refresh customer_locations after Google saves the new location.
+      // This ensures the displayed location uses the database value.
       qc.invalidateQueries({
-        queryKey: ["consultations"],
+        queryKey: ["myLocation"],
       });
 
+      // CHANGED: Close the Google Places editor after the database update succeeds.
       setIsEditing(false);
     },
 
     onError: (err: Error) => {
+      // CHANGED: Keep the existing error handling for failed customer location updates.
       toast.error(err.message || "Failed to update location");
     },
   });
@@ -642,7 +705,7 @@ function LocationEditor({
         if (!PlaceAutocompleteElement) {
           toast.error(
             "Google Places Autocomplete is not available. " +
-              "Please try again or use Share My Current Location.",
+              "Please try again or use Share My Current Location from profile section in the DASHBOARD.",
           );
 
           return;
@@ -767,8 +830,13 @@ function LocationEditor({
             // id                -> Google Place ID
             // ==================================================================
 
+            // CHANGED: Request addressComponents because customer_locations has separate
+            // address, city, state and postal_code columns.
             await place.fetchFields({
-              fields: ["formattedAddress", "location", "id"],
+              // CHANGED: formattedAddress is saved into customer_locations.address.
+              // CHANGED: location is saved into customer_locations.latitude/longitude.
+              // CHANGED: addressComponents is used to extract city/state/postal_code.
+              fields: ["formattedAddress", "location", "addressComponents"],
             });
 
             // ==================================================================
@@ -797,19 +865,39 @@ function LocationEditor({
             // Validate Place ID.
             // ==================================================================
 
-            if (!place.id) {
-              toast.error("Google did not return a valid Place ID.");
+            // if (!place.id) {
+            //   toast.error("Google did not return a valid Place ID.");
 
-              return;
-            }
+            //   return;
+            // }
 
             // ==================================================================
             // CHANGE 22:
             // Validate the formatted address before saving.
             // ==================================================================
+            // const formatted = place.formattedAddress?.trim() ?? "";
+
+            // CHANGED: Read the address components returned by Google.
+            const components = place.addressComponents ?? [];
+
+            // CHANGED: Extract the city from Google's locality component.
+            const city =
+              components.find((component) => component.types.includes("locality"))?.longText ??
+              components.find((component) => component.types.includes("postal_town"))?.longText ??
+              null;
+
+            // CHANGED: Extract the state from Google's administrative_area_level_1 component.
+            const state =
+              components.find((component) =>
+                component.types.includes("administrative_area_level_1"),
+              )?.longText ?? null;
+
+            // CHANGED: Extract the postal code from Google's postal_code component.
+            const postalCode =
+              components.find((component) => component.types.includes("postal_code"))?.longText ??
+              null;
 
             const formatted = place.formattedAddress?.trim() ?? "";
-
             if (!formatted) {
               toast.error("Google did not return a formatted address.");
 
@@ -845,8 +933,6 @@ function LocationEditor({
             // The database update happens below.
             // ==================================================================
 
-            setAddress(formatted);
-
             // ==================================================================
             // CHANGE 26:
             // Save the EXACT Google-selected location to the consultation.
@@ -860,12 +946,30 @@ function LocationEditor({
             // property_formatted_address
             // ==================================================================
 
+            // CHANGED: Save the selected Google location into customer_locations,
+            // not into the consultations table.
             saveLocation({
-              consultationId,
-              property_lat: latitude,
-              property_lng: longitude,
-              property_place_id: place.id,
-              property_formatted_address: formatted,
+              // CHANGED: Map Google's latitude to customer_locations.latitude.
+              latitude,
+
+              // CHANGED: Map Google's longitude to customer_locations.longitude.
+              longitude,
+
+              // CHANGED: A Google Place selection does not provide browser GPS accuracy,
+              // so keep this null rather than inventing an accuracy value.
+              accuracy: null,
+
+              // CHANGED: Save Google's formatted address into customer_locations.address.
+              address: formatted,
+
+              // CHANGED: Save Google's city into customer_locations.city.
+              city,
+
+              // CHANGED: Save Google's state into customer_locations.state.
+              state,
+
+              // CHANGED: Save Google's postal code into customer_locations.postal_code.
+              postal_code: postalCode,
             });
           } catch (error) {
             // ==================================================================
@@ -976,7 +1080,9 @@ function LocationEditor({
     //
     // This keeps the effect focused on the values it actually uses.
     // ==========================================================================
-  }, [isEditing, consultationId, saveLocation]);
+    // CHANGED: consultationId was removed because LocationEditor no longer
+    // performs a consultation update.
+  }, [isEditing, saveLocation]);
 
   // ============================================================================
   // CHANGE 36:

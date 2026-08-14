@@ -134,6 +134,17 @@ function ConsultationPage() {
               >
                 Go to Client Portal
               </Link>
+              <p className="mt-2 font-body-md text-on-surface-variant">
+                If you are at the property location use the location update option in the PROFILE
+                section in the DASHBOARD.
+              </p>
+              <Link
+                to="/dashboard"
+                search={{ tab: "profile" }}
+                className="mt-4 inline-block font-label-caps text-xs text-secondary underline hover:text-primary transition-colors"
+              >
+                Update Location
+              </Link>
             </div>
             <Link to="/" className={`mt-10 inline-block ${primaryBtn}`}>
               Return Home

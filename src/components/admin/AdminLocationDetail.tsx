@@ -21,7 +21,7 @@ export function AdminLocationDetail({
             onClick={onClose}
             className="p-2 text-on-surface-variant hover:text-primary transition-colors"
           >
-            <Icon name="X" size={24} />
+            <Icon name="close" className="text-[24px]" />
           </button>
         </div>
 

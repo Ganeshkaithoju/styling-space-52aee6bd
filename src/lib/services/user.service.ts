@@ -67,11 +67,13 @@ export async function listUsers() {
       return {
         id: u.id,
         email: u.email || profile?.email || "",
-        full_name: profile?.full_name || u.user_metadata?.full_name || "",
-        avatar_url: profile?.avatar_url || u.user_metadata?.avatar_url || null,
+        full_name:
+          profile?.full_name || (u.user_metadata?.["full_name"] as string | undefined) || "",
+        avatar_url:
+          profile?.avatar_url || (u.user_metadata?.["avatar_url"] as string | undefined) || null,
         role: roleRecord?.role || "user",
         role_created_at: roleRecord?.created_at,
-        status: ((profile as Record<string, unknown>)?.status as string) || "active",
+        status: ((profile as Record<string, unknown>)?.["status"] as string) || "active",
         provider,
         created_at: u.created_at,
         updated_at: u.updated_at,
@@ -143,7 +145,10 @@ export async function createAdmin(
   });
 
   // 4. Send a reset password email
-  const { error: emailError } = await supabaseAdmin.auth.admin.resetPasswordForEmail(email);
+  const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
+    type: "recovery",
+    email,
+  });
 
   if (emailError) {
     throw new Error("Admin account was created, but the password setup email could not be sent.");
@@ -189,7 +194,9 @@ export async function setAccountStatus(
   await requireAdminAuth(supabaseAdmin, callerId);
   await enforceOwnerProtection(supabaseAdmin, targetUserId);
 
-  const { error } = await supabaseAdmin.from("profiles").update({ status }).eq("id", targetUserId);
+  const { error } = await (supabaseAdmin.from("profiles") as ReturnType<typeof supabaseAdmin.from>)
+    .update({ status } as Record<string, unknown>)
+    .eq("id", targetUserId);
   if (error) throw new Error("Failed to update status: " + error.message);
 
   if (status === "inactive") {
@@ -216,14 +223,55 @@ export async function adminResetPassword(callerId: string, targetUserId: string,
   await requireAdminAuth(supabaseAdmin, callerId);
   await enforceOwnerProtection(supabaseAdmin, targetUserId);
 
-  const { error } = await supabaseAdmin.auth.admin.resetPasswordForEmail(email);
-  if (error) throw new Error("Failed to send reset email: " + error.message);
+  // Generate the recovery link server-side.
+  // generateLink returns the one-time URL; we must deliver it ourselves.
+  const { data: linkData, error } = await supabaseAdmin.auth.admin.generateLink({
+    type: "recovery",
+    email,
+  });
+  if (error) throw new Error("Failed to generate reset link: " + error.message);
+
+  const recoveryUrl = linkData?.properties?.action_link;
+
+  // Deliver the recovery link via the existing Resend integration.
+  if (recoveryUrl) {
+    try {
+      const { Resend } = await import("resend");
+      const resendApiKey = process.env["RESEND_API_KEY"];
+      if (resendApiKey) {
+        const resend = new Resend(resendApiKey);
+        await resend.emails.send({
+          from: "Styling Space <noreply@resend.dev>",
+          to: email,
+          subject: "Set up your Styling Space password",
+          html: `
+            <p>Hi there,</p>
+            <p>An administrator has created an account for you at Styling Space.</p>
+            <p>Click the button below to set your password. This link expires in 24 hours.</p>
+            <p><a href="${recoveryUrl}" style="display:inline-block;padding:12px 24px;background:#1a1a1a;color:#fff;text-decoration:none;font-family:sans-serif;">Set Password</a></p>
+            <p>If you did not expect this email, you can safely ignore it.</p>
+            <p>Best regards,<br/>The Styling Space Team</p>
+          `,
+        });
+      } else {
+        // RESEND_API_KEY not configured — log but do not fail the admin action.
+        console.warn(
+          "[adminResetPassword] RESEND_API_KEY not set. Recovery link was generated but not emailed.",
+          { targetUserId },
+        );
+      }
+    } catch (emailErr) {
+      // Email delivery failure is non-fatal: the link was generated.
+      // The admin can manually share the link or retry.
+      console.error("[adminResetPassword] Failed to send recovery email:", emailErr);
+    }
+  }
 
   const auditRes = await createAuditLog(supabaseAdmin, callerId, {
     action: "PASSWORD_RESET_TRIGGERED",
     entityType: "user",
     entityId: targetUserId,
-    description: "Admin triggered password reset",
+    description: "Admin triggered password reset email",
   });
   if (!auditRes.success)
     throw new Error(
@@ -235,7 +283,10 @@ export async function transferOwnership(callerId: string, targetAdminId: string)
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   // Call the atomic postgres function (which verifies caller is owner)
-  const { error } = await supabaseAdmin.rpc("transfer_ownership", { new_owner_id: targetAdminId });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabaseAdmin as any).rpc("transfer_ownership", {
+    new_owner_id: targetAdminId,
+  });
   if (error) {
     if (error.message.includes("Only the current owner")) {
       throw new Error("Forbidden: This action requires Owner privileges.");

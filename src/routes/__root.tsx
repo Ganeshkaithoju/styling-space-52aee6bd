@@ -93,7 +93,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     scripts: [
       {
-        src: `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ""}&libraries=places`,
+        src: `https://maps.googleapis.com/maps/api/js?key=${import.meta.env["VITE_GOOGLE_MAPS_API_KEY"] || ""}&loading=async&libraries=places`,
         async: true,
         defer: true,
       },

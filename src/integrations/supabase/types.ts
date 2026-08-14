@@ -86,6 +86,96 @@ export type Database = {
         };
         Relationships: [];
       };
+      audit_logs: {
+        Row: {
+          actor_email: string | null;
+          actor_name: string | null;
+          actor_role: Database["public"]["Enums"]["app_role"];
+          actor_user_id: string;
+          action: string;
+          created_at: string;
+          description: string | null;
+          entity_id: string | null;
+          entity_type: string;
+          id: string;
+          metadata: Json | null;
+          new_data: Json | null;
+          old_data: Json | null;
+        };
+        Insert: {
+          actor_email?: string | null;
+          actor_name?: string | null;
+          actor_role: Database["public"]["Enums"]["app_role"];
+          actor_user_id: string;
+          action: string;
+          created_at?: string;
+          description?: string | null;
+          entity_id?: string | null;
+          entity_type: string;
+          id?: string;
+          metadata?: Json | null;
+          new_data?: Json | null;
+          old_data?: Json | null;
+        };
+        Update: {
+          actor_email?: string | null;
+          actor_name?: string | null;
+          actor_role?: Database["public"]["Enums"]["app_role"];
+          actor_user_id?: string;
+          action?: string;
+          created_at?: string;
+          description?: string | null;
+          entity_id?: string | null;
+          entity_type?: string;
+          id?: string;
+          metadata?: Json | null;
+          new_data?: Json | null;
+          old_data?: Json | null;
+        };
+        Relationships: [];
+      };
+      customer_locations: {
+        Row: {
+          accuracy: number | null;
+          address: string | null;
+          city: string | null;
+          created_at: string;
+          id: string;
+          latitude: number;
+          longitude: number;
+          postal_code: string | null;
+          state: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          accuracy?: number | null;
+          address?: string | null;
+          city?: string | null;
+          created_at?: string;
+          id?: string;
+          latitude: number;
+          longitude: number;
+          postal_code?: string | null;
+          state?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          accuracy?: number | null;
+          address?: string | null;
+          city?: string | null;
+          created_at?: string;
+          id?: string;
+          latitude?: number;
+          longitude?: number;
+          postal_code?: string | null;
+          state?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
@@ -384,7 +474,7 @@ export type Database = {
       };
     };
     Enums: {
-      app_role: "admin" | "editor" | "user";
+      app_role: "admin" | "editor" | "owner" | "user";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -506,7 +596,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "editor", "user"],
+      app_role: ["admin", "editor", "owner", "user"],
     },
   },
 } as const;

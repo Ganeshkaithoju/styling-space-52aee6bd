@@ -108,9 +108,9 @@ function AuthPage() {
               .from("profiles")
               .upsert({
                 id: session.user.id,
-                email: session.user.email,
-                full_name: meta.full_name,
-                avatar_url: meta.avatar_url,
+                email: session.user.email ?? null,
+                full_name: meta["full_name"] as string | null,
+                avatar_url: meta["avatar_url"] as string | null,
                 updated_at: new Date().toISOString(),
               })
               .then(({ error }) => {

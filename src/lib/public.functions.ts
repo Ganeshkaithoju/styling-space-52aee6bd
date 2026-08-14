@@ -99,7 +99,7 @@ export const submitConsultation = createServerFn({ method: "POST" })
     const insertData = {
       ...data,
       user_id: context.userId,
-      email: context.claims.email, // Secure email from JWT
+      email: context.claims.email ?? "", // Secure email from JWT
       full_name: profile?.full_name || data.full_name || "Unknown",
       phone: profile?.phone || data.phone || null,
     };
@@ -124,7 +124,7 @@ export const submitConsultation = createServerFn({ method: "POST" })
     // 4. Send Email Confirmation via Resend
     try {
       const { Resend } = await import("resend");
-      const resendApiKey = process.env.RESEND_API_KEY;
+      const resendApiKey = process.env["RESEND_API_KEY"];
       if (resendApiKey) {
         const resend = new Resend(resendApiKey);
         await resend.emails.send({
@@ -193,6 +193,10 @@ export const updateCustomerLocation = createServerFn({ method: "POST" })
         latitude: z.number().min(-90).max(90),
         longitude: z.number().min(-180).max(180),
         accuracy: z.number().nullable().optional(),
+        address: z.string().trim().max(500).nullable().optional(),
+        city: z.string().trim().max(200).nullable().optional(),
+        state: z.string().trim().max(200).nullable().optional(),
+        postal_code: z.string().trim().max(20).nullable().optional(),
       })
       .parse(input),
   )
@@ -203,6 +207,10 @@ export const updateCustomerLocation = createServerFn({ method: "POST" })
         latitude: data.latitude,
         longitude: data.longitude,
         accuracy: data.accuracy ?? null,
+        address: data.address ?? null,
+        city: data.city ?? null,
+        state: data.state ?? null,
+        postal_code: data.postal_code ?? null,
       },
       { onConflict: "user_id" },
     );

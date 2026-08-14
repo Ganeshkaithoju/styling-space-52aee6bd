@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, TablesUpdate } from "@/integrations/supabase/types";
 
 export const getIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -117,7 +117,7 @@ export const saveProject = createServerFn({ method: "POST" })
     await createAuditLog(supabaseAdmin, context.userId, {
       action: isUpdate ? "PROJECT_UPDATED" : "PROJECT_CREATED",
       entityType: "project",
-      entityId: id || resData?.id,
+      ...(id || resData?.id ? { entityId: (id || resData?.id) as string } : {}),
       description: isUpdate ? `Updated Project` : `Created Project`,
       newData: values,
     });
@@ -236,8 +236,17 @@ export const updateService = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { id, ...values } = data;
-    const { error } = await context.supabase.from("services").update(values).eq("id", id);
+    const { id, ...fields } = data;
+    // Build an explicitly typed update payload to satisfy exactOptionalPropertyTypes.
+    const updatePayload: TablesUpdate<"services"> = {
+      ...(fields.number !== undefined ? { number: fields.number } : {}),
+      ...(fields.title !== undefined ? { title: fields.title } : {}),
+      ...(fields.description !== undefined ? { description: fields.description ?? null } : {}),
+      ...(fields.details !== undefined ? { details: fields.details ?? null } : {}),
+      ...(fields.status !== undefined ? { status: fields.status } : {}),
+      ...(fields.sort_order !== undefined ? { sort_order: fields.sort_order } : {}),
+    };
+    const { error } = await context.supabase.from("services").update(updatePayload).eq("id", id);
     if (error) throw new Error(error.message);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -247,7 +256,7 @@ export const updateService = createServerFn({ method: "POST" })
       entityType: "service",
       entityId: id,
       description: "Updated Service",
-      newData: values,
+      newData: updatePayload,
     });
 
     return { ok: true };
@@ -322,7 +331,7 @@ export const updateConsultation = createServerFn({ method: "POST" })
     // 4. Send Email Notification via Resend
     try {
       const { Resend } = await import("resend");
-      const resendApiKey = process.env.RESEND_API_KEY;
+      const resendApiKey = process.env["RESEND_API_KEY"];
       if (resendApiKey && updatedData.email) {
         const resend = new Resend(resendApiKey);
 

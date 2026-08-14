@@ -39,7 +39,7 @@ export async function createAuditLog(
 
     const user = userRes.data.user;
     const actorRole = roleRes.data?.role || "user";
-    const actorName = user.user_metadata?.full_name || "Unknown";
+    const actorName = (user.user_metadata?.["full_name"] as string | null) ?? "Unknown";
     const actorEmail = user.email || "Unknown";
 
     // Write the audit log using the service role client
@@ -50,8 +50,8 @@ export async function createAuditLog(
       actor_role: actorRole,
       action: options.action,
       entity_type: options.entityType,
-      entity_id: options.entityId,
-      description: options.description,
+      entity_id: options.entityId ?? null,
+      description: options.description ?? null,
       old_data: options.oldData || null,
       new_data: options.newData || null,
       metadata: options.metadata || null,
